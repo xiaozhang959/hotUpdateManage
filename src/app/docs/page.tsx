@@ -1,9 +1,10 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { NavBar } from '@/components/layout/navbar'
+import { Footer } from '@/components/layout/footer'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Code, Key, Package, Rocket } from 'lucide-react'
+import { Code, Key, Package, Rocket, FileText, BookOpen } from 'lucide-react'
 
 export default async function DocsPage() {
   const session = await auth()
@@ -13,9 +14,9 @@ export default async function DocsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
       <NavBar user={session.user} />
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-8 max-w-4xl flex-1">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
             API 文档
@@ -269,6 +270,7 @@ def check_update():
           </TabsContent>
         </Tabs>
       </div>
+      <Footer />
     </div>
   )
 }

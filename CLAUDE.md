@@ -23,6 +23,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ API文档页面
 - ✅ 响应式导航栏
 - ✅ SessionProvider集成
+- ✅ 版本管理页面优化（Tab切换动画）
+- ✅ API集成示例代码展示（cURL、JavaScript）
+- ✅ API密钥显示/隐藏功能
+- ✅ 一键复制功能（API密钥、代码示例）
+- ✅ Framer Motion动画效果集成
 
 ### TODO
 - [ ] 文件上传功能（支持本地上传）

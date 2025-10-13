@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Footer } from '@/components/layout/footer'
 import {
   Button,
   Card,
@@ -169,7 +170,8 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
+      <div className="container mx-auto px-4 py-8 flex-1">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
@@ -257,7 +259,7 @@ export default function ProjectsPage() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Hash className="h-3 w-3" />
-                          {project._count.versions} 个版本
+                          {project._count?.versions || 0} 个版本
                         </span>
                         {project.currentVersion && (
                           <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
@@ -315,7 +317,7 @@ export default function ProjectsPage() {
                       </Button>
                     </div>
                   </div>
-                  {project.versions.length > 0 && (
+                  {project.versions && project.versions.length > 0 && (
                     <div className="text-sm text-gray-600 dark:text-gray-400">
                       最新版本: {project.versions[0].version}
                       <span className="ml-2 text-xs">
@@ -350,6 +352,8 @@ export default function ProjectsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
+      <Footer />
     </div>
   )
 }

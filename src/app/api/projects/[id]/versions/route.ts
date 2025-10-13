@@ -6,10 +6,11 @@ import { calculateMD5, generateRandomMD5 } from '@/lib/crypto'
 // 获取项目的所有版本
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
+    const { id } = await params
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: '未授权' }, { status: 401 })
@@ -18,7 +19,7 @@ export async function GET(
     // 验证项目所有权
     const project = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: session.user.id
       }
     })
@@ -29,7 +30,7 @@ export async function GET(
 
     const versions = await prisma.version.findMany({
       where: {
-        projectId: params.id
+        projectId: id
       },
       orderBy: {
         createdAt: 'desc'
@@ -49,10 +50,11 @@ export async function GET(
 // 创建新版本
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
+    const { id } = await params
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: '未授权' }, { status: 401 })
@@ -61,7 +63,7 @@ export async function POST(
     // 验证项目所有权
     const project = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: session.user.id
       }
     })
@@ -83,7 +85,7 @@ export async function POST(
     const existingVersion = await prisma.version.findUnique({
       where: {
         projectId_version: {
-          projectId: params.id,
+          projectId: id,
           version
         }
       }
@@ -103,14 +105,14 @@ export async function POST(
     const newVersion = await prisma.$transaction(async (tx) => {
       // 先将所有版本的isCurrent设为false
       await tx.version.updateMany({
-        where: { projectId: params.id },
+        where: { projectId: id },
         data: { isCurrent: false }
       })
 
       // 创建新版本并设为当前版本
-      const version = await tx.version.create({
+      const createdVersion = await tx.version.create({
         data: {
-          projectId: params.id,
+          projectId: id,
           version,
           downloadUrl,
           md5,
@@ -122,11 +124,11 @@ export async function POST(
 
       // 更新项目的当前版本
       await tx.project.update({
-        where: { id: params.id },
-        data: { currentVersion: version.version }
+        where: { id: id },
+        data: { currentVersion: createdVersion.version }
       })
 
-      return version
+      return createdVersion
     })
 
     return NextResponse.json(newVersion)

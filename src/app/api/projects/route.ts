@@ -67,6 +67,19 @@ export async function POST(req: Request) {
         name: name.trim(),
         apiKey: generateApiKey(),
         userId: session.user.id
+      },
+      include: {
+        versions: {
+          orderBy: {
+            createdAt: 'desc'
+          },
+          take: 1
+        },
+        _count: {
+          select: {
+            versions: true
+          }
+        }
       }
     })
 

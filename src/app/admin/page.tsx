@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Footer } from '@/components/layout/footer'
 import {
   Button,
   Card,
@@ -166,13 +167,14 @@ export default function AdminPage() {
 
   const stats: Stats = {
     totalUsers: users.length,
-    totalProjects: users.reduce((acc, user) => acc + user._count.projects, 0),
+    totalProjects: users.reduce((acc, user) => acc + (user._count?.projects || 0), 0),
     totalVersions: 0, // 需要额外的API获取
     adminCount: users.filter(u => u.role === 'ADMIN').length
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
+      <div className="container mx-auto px-4 py-8 flex-1">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
           管理员控制台
@@ -223,7 +225,7 @@ export default function AdminPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {users.filter(u => u._count.projects > 0).length}
+              {users.filter(u => (u._count?.projects || 0) > 0).length}
             </div>
             <p className="text-xs text-gray-500">
               有项目的用户
@@ -240,7 +242,7 @@ export default function AdminPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {users.filter(u => u._count.projects === 0).length}
+              {users.filter(u => (u._count?.projects || 0) === 0).length}
             </div>
             <p className="text-xs text-gray-500">
               无项目的用户
@@ -289,7 +291,7 @@ export default function AdminPage() {
                       <Badge variant="secondary">用户</Badge>
                     )}
                   </TableCell>
-                  <TableCell>{user._count.projects}</TableCell>
+                  <TableCell>{user._count?.projects || 0}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm text-gray-500">
                       <Calendar className="h-3 w-3" />
@@ -409,6 +411,8 @@ export default function AdminPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
+      <Footer />
     </div>
   )
 }
