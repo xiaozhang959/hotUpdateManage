@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app:*)",
+      "Read(//f/codeWorkSpaces/**)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(cp:*)",
+      "Bash(npm install next-auth@beta @auth/prisma-adapter prisma @prisma/client bcryptjs framer-motion lucide-react @radix-ui/react-dialog @radix-ui/react-label @radix-ui/react-select @radix-ui/react-slot @radix-ui/react-toast clsx tailwind-merge class-variance-authority)",
+      "Bash(npm install -D @types/bcryptjs tailwindcss-animate)",
+      "Bash(npx shadcn:*)",
+      "Bash(npx prisma init:*)",
+      "Bash(npx prisma migrate dev:*)",
+      "Bash(npm run dev)",
+      "Bash(npm install:*)",
+      "Bash(mkdir:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,50 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  username  String    @unique
+  password  String
+  role      String    @default("USER")
+  projects  Project[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Project {
+  id              String    @id @default(cuid())
+  name            String
+  apiKey          String    @unique @default(uuid())
+  currentVersion  String?   // 当前活跃版本
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions        Version[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Version {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version     String
+  downloadUrl String
+  md5         String
+  forceUpdate Boolean  @default(false)
+  changelog   String
+  isCurrent   Boolean  @default(false) // 是否为当前版本
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([projectId, version])
+}
