@@ -614,7 +614,7 @@ curl -X POST ${typeof window !== 'undefined' ? window.location.origin : 'https:/
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <Badge variant={
-                                endpoint.method === 'GET' ? 'default' : 'success'
+                                endpoint.method === 'GET' ? 'default' : 'secondary'
                               }>
                                 {endpoint.method}
                               </Badge>

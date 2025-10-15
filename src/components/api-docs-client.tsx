@@ -193,7 +193,7 @@ export function ApiDocsClient({ apiEndpoints, codeExamples }: ApiDocsClientProps
                               size="sm"
                               variant="ghost"
                               className="absolute right-2 top-2"
-                              onClick={() => copyCode(endpoint.headers, `headers-${category.category}-${index}`)}
+                              onClick={() => copyCode(endpoint.headers!, `headers-${category.category}-${index}`)}
                             >
                               {copiedCode === `headers-${category.category}-${index}` ? (
                                 <span className="text-green-600 text-xs">已复制!</span>
@@ -216,7 +216,7 @@ export function ApiDocsClient({ apiEndpoints, codeExamples }: ApiDocsClientProps
                               size="sm"
                               variant="ghost"
                               className="absolute right-2 top-2"
-                              onClick={() => copyCode(endpoint.body, `body-${category.category}-${index}`)}
+                              onClick={() => copyCode(endpoint.body!, `body-${category.category}-${index}`)}
                             >
                               {copiedCode === `body-${category.category}-${index}` ? (
                                 <span className="text-green-600 text-xs">已复制!</span>

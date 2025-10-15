@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
-    "build:vercel": "prisma generate && prisma migrate deploy && next build --turbopack",
+    "build": "next build",
+    "build:vercel": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
     "db:setup": "node scripts/setup-db.js",
@@ -17,6 +17,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@auth/core": "0.40.0",
     "@auth/prisma-adapter": "^2.11.0",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/client": "^6.17.1",
@@ -60,13 +61,13 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
-    "dotenv": "^16.4.5",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^16.4.5",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
     "tailwindcss": "^4",

@@ -544,7 +544,7 @@ export default function SystemSettingsPage() {
                         <div className="text-sm text-yellow-900 dark:text-yellow-100">
                           <p className="font-semibold mb-1">邮箱验证注意事项：</p>
                           <ul className="list-disc list-inside space-y-1 text-yellow-700 dark:text-yellow-200">
-                            <li>启用"是否需要邮箱验证"前，请先配置SMTP邮件服务</li>
+                            <li>启用“是否需要邮箱验证”前，请先配置SMTP邮件服务</li>
                             <li>启用后，新用户注册需要验证邮箱才能登录</li>
                             <li>已注册的未验证用户需要重新发送验证邮件</li>
                           </ul>

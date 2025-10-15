@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 export async function POST(req: NextRequest) {
   try {
     let project: any = null
+    let currentVersionToCheck: string | undefined
     
     // Try Bearer token authentication first
     const user = await validateBearerToken(req)
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
       }
       
       // Continue with currentVersion from body
-      var currentVersionToCheck = currentVersion
+      currentVersionToCheck = currentVersion
     } else {
       // Fall back to API key authentication
       project = await validateApiKey(req)
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
       }
       
       const body = await req.json()
-      var currentVersionToCheck = body.currentVersion
+      currentVersionToCheck = body.currentVersion
     }
 
     // Get the latest version

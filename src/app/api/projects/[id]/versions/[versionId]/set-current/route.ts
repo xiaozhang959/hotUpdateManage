@@ -6,7 +6,7 @@ import { versionCache } from '@/lib/cache/version-cache'
 // 设置当前活跃版本
 export async function POST(
   req: Request,
-  { params }: { params: { id: string, versionId: string } }
+  { params }: { params: Promise<{ id: string, versionId: string }> }
 ) {
   try {
     const session = await auth()
@@ -15,10 +15,12 @@ export async function POST(
       return NextResponse.json({ error: '未授权' }, { status: 401 })
     }
 
+    const { id, versionId } = await params
+
     // 验证项目所有权
     const project = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: session.user.id
       }
     })
@@ -30,8 +32,8 @@ export async function POST(
     // 验证版本是否存在
     const version = await prisma.version.findFirst({
       where: {
-        id: params.versionId,
-        projectId: params.id
+        id: versionId,
+        projectId: id
       }
     })
 
@@ -43,32 +45,32 @@ export async function POST(
     await prisma.$transaction(async (tx) => {
       // 先将所有版本的isCurrent设为false
       await tx.version.updateMany({
-        where: { projectId: params.id },
+        where: { projectId: id },
         data: { isCurrent: false }
       })
 
       // 设置选中版本为当前版本
       await tx.version.update({
-        where: { id: params.versionId },
+        where: { id: versionId },
         data: { isCurrent: true }
       })
 
       // 更新项目的当前版本
       await tx.project.update({
-        where: { id: params.id },
+        where: { id },
         data: { currentVersion: version.version }
       })
     })
 
     // 清理项目缓存，确保下次请求获取最新的当前版本
-    await versionCache.clearProjectCache(params.id)
+    await versionCache.clearProjectCache(id)
     
     // 预热缓存，缓存新的当前版本
     const updatedVersion = await prisma.version.findUnique({
-      where: { id: params.versionId }
+      where: { id: versionId }
     })
     if (updatedVersion) {
-      await versionCache.warmupCache(params.id, updatedVersion)
+      await versionCache.warmupCache(id, updatedVersion)
     }
 
     return NextResponse.json({

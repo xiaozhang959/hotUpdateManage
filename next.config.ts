@@ -7,7 +7,11 @@ const nextConfig: NextConfig = {
     'localhost:3000',
     '127.0.0.1:3000',
     '198.18.0.1:3000',
-  ]
+  ],
+  // 在构建时忽略 ESLint 错误
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;

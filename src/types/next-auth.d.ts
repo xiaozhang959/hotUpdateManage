@@ -5,12 +5,14 @@ declare module "next-auth" {
     user: {
       id: string
       role: string
-      emailVerified?: boolean
+      // Support both NextAuth's Date | null and our boolean schema
+      emailVerified?: boolean | Date | null
     } & DefaultSession["user"]
   }
 
   interface User {
     role: string
-    emailVerified?: boolean
+    // Match adapter's Date | null while allowing boolean in app code
+    emailVerified?: boolean | Date | null
   }
 }

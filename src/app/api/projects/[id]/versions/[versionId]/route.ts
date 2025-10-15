@@ -7,7 +7,7 @@ import { versionCache } from '@/lib/cache/version-cache'
 // 删除版本
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string, versionId: string } }
+  { params }: { params: Promise<{ id: string, versionId: string }> }
 ) {
   try {
     const session = await auth()
@@ -16,10 +16,12 @@ export async function DELETE(
       return NextResponse.json({ error: '未授权' }, { status: 401 })
     }
 
+    const { id, versionId } = await params
+
     // 验证项目所有权
     const project = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: session.user.id
       }
     })
@@ -31,8 +33,8 @@ export async function DELETE(
     // 验证版本是否存在
     const version = await prisma.version.findFirst({
       where: {
-        id: params.versionId,
-        projectId: params.id
+        id: versionId,
+        projectId: id
       }
     })
 
@@ -48,8 +50,8 @@ export async function DELETE(
       // 获取其他版本
       const otherVersion = await prisma.version.findFirst({
         where: {
-          projectId: params.id,
-          id: { not: params.versionId }
+          projectId: id,
+          id: { not: versionId }
         },
         orderBy: { createdAt: 'desc' }
       })
@@ -58,7 +60,7 @@ export async function DELETE(
       await prisma.$transaction(async (tx) => {
         // 删除版本
         await tx.version.delete({
-          where: { id: params.versionId }
+          where: { id: versionId }
         })
 
         // 如果有其他版本，设置最新的为当前版本
@@ -68,13 +70,13 @@ export async function DELETE(
             data: { isCurrent: true }
           })
           await tx.project.update({
-            where: { id: params.id },
+            where: { id },
             data: { currentVersion: otherVersion.version }
           })
         } else {
           // 没有其他版本了，清空当前版本
           await tx.project.update({
-            where: { id: params.id },
+            where: { id },
             data: { currentVersion: null }
           })
         }
@@ -82,7 +84,7 @@ export async function DELETE(
     } else {
       // 不是当前版本，直接删除
       await prisma.version.delete({
-        where: { id: params.versionId }
+        where: { id: versionId }
       })
     }
 
@@ -92,7 +94,7 @@ export async function DELETE(
     }
     
     // 清理项目缓存
-    await versionCache.clearProjectCache(params.id)
+    await versionCache.clearProjectCache(id)
 
     return NextResponse.json({ message: '版本已删除' })
   } catch (error) {

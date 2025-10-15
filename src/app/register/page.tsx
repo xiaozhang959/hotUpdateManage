@@ -238,7 +238,7 @@ export default function RegisterPage() {
                     <p className="font-medium">接下来的步骤：</p>
                     <ol className="list-decimal list-inside space-y-1 text-blue-700 dark:text-blue-400">
                       <li>查看您的邮箱收件箱</li>
-                      <li>打开来自 "热更新管理系统" 的邮件</li>
+                      <li>打开来自“热更新管理系统”的邮件</li>
                       <li>点击邮件中的验证链接</li>
                       <li>验证成功后即可登录</li>
                     </ol>

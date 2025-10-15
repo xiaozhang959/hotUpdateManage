@@ -197,7 +197,7 @@ export default function ProjectsPage() {
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
       <main className="container mx-auto px-4 py-8 flex-1 min-h-[calc(100vh-200px)]">
       <EmailVerificationBanner 
-        emailVerified={session?.user?.emailVerified || false} 
+        emailVerified={!!session?.user?.emailVerified}
         email={session?.user?.email}
       />
       
@@ -366,7 +366,7 @@ export default function ProjectsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除项目</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除项目 "{deleteProject?.name}" 吗？
+              确定要删除项目 {deleteProject?.name} 吗？
               此操作将同时删除该项目下的所有版本，且无法恢复。
             </AlertDialogDescription>
           </AlertDialogHeader>

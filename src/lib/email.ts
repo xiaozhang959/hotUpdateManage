@@ -1,5 +1,4 @@
 import { getConfig } from '@/lib/system-config'
-// @ts-ignore
 import nodemailer from 'nodemailer'
 
 interface EmailConfig {

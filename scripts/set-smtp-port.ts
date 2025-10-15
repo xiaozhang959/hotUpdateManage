@@ -4,7 +4,7 @@ import { prisma } from '../src/lib/prisma'
 async function setSMTPPort() {
   try {
     // AhaSend 通常使用端口 587 (STARTTLS) 或 465 (SSL/TLS)
-    const port = 587 // 您可以根据需要修改为 465
+    const port: number = 587 // 您可以根据需要修改为 465
     
     const result = await prisma.systemConfig.upsert({
       where: { key: 'smtp_port' },

@@ -234,7 +234,7 @@ export function ProjectDetailDialog({
           <DialogHeader>
             <DialogTitle>项目详情管理</DialogTitle>
             <DialogDescription>
-              查看和管理项目 "{project.name}" 的所有信息
+              查看和管理项目 {project.name} 的所有信息
             </DialogDescription>
           </DialogHeader>
 
@@ -530,7 +530,7 @@ export function ProjectDetailDialog({
           <DialogHeader>
             <DialogTitle>添加新版本</DialogTitle>
             <DialogDescription>
-              为项目 "{project.name}" 添加新版本
+              为项目 {project.name} 添加新版本
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">

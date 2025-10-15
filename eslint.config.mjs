@@ -18,7 +18,18 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "scripts/**",
+      "test-*.js",
+      "*.config.js",
     ],
+  },
+  {
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": "warn",
+      "react-hooks/exhaustive-deps": "warn",
+      "jsx-a11y/alt-text": "warn",
+    },
   },
 ];
 

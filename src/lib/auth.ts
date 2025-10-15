@@ -1,15 +1,15 @@
 import NextAuth from "next-auth"
 import { PrismaAdapter } from "@auth/prisma-adapter"
-import Credentials from "next-auth/providers/credentials"
+import CredentialsProvider from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
 import { getConfig } from "@/lib/system-config"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  adapter: PrismaAdapter(prisma) as any,
   session: { strategy: "jwt" },
   providers: [
-    Credentials({
+    CredentialsProvider({
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
@@ -77,7 +77,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session?.user) {
         session.user.id = token.id as string
         session.user.role = token.role as string
-        session.user.emailVerified = token.emailVerified as boolean
+        // NextAuth's Session.user.emailVerified is typically Date | null; coerce boolean -> Date | null
+        session.user.emailVerified = token.emailVerified ? new Date() : null
       }
       return session
     }

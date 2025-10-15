@@ -1,11 +1,11 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
 // 配置连接池和查询日志
-const prismaClientOptions = {
+const prismaClientOptions: Prisma.PrismaClientOptions = {
   datasources: {
     db: {
       url: process.env.DATABASE_URL,
@@ -17,15 +17,17 @@ const prismaClientOptions = {
         { level: 'query', emit: 'event' },
         { level: 'error', emit: 'stdout' },
         { level: 'warn', emit: 'stdout' },
-      ] as const
-    : ['error'] as const,
+      ]
+    : [
+        { level: 'error', emit: 'stdout' },
+      ],
 }
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient(prismaClientOptions)
 
 // 开发环境下监听查询事件，记录慢查询
 if (process.env.NODE_ENV === 'development') {
-  // @ts-ignore
+  // @ts-expect-error - Prisma query event types
   prisma.$on('query', (e: any) => {
     // 记录执行时间超过100ms的查询
     if (e.duration > 100) {

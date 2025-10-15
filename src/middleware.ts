@@ -88,7 +88,7 @@ export async function middleware(request: NextRequest) {
         const userAgent = request.headers.get('user-agent')
         const forwarded = request.headers.get('x-forwarded-for')
         const realIp = request.headers.get('x-real-ip')
-        const ipAddress = forwarded?.split(',')[0] || realIp || request.ip || 'unknown'
+        const ipAddress = forwarded?.split(',')[0] || realIp || 'unknown'
         
         // 从 API-Key 头部获取项目信息（如果有的话）
         const apiKey = request.headers.get('api-key') || request.nextUrl.searchParams.get('api_key')
@@ -145,7 +145,7 @@ export async function middleware(request: NextRequest) {
       }
     } else {
       // 使用缓存的值
-      needsInit = initStatusCache.needsInit
+      needsInit = initStatusCache?.needsInit ?? false
     }
     
     // 如果需要初始化且不在初始化页面，重定向到初始化页面

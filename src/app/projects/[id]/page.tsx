@@ -329,7 +329,7 @@ export default function ProjectVersionsPage() {
       scale: 1,
       transition: {
         duration: 0.3,
-        ease: [0.4, 0, 0.2, 1]
+        ease: [0.4, 0, 0.2, 1] as [number, number, number, number]
       }
     },
     exit: { 
@@ -338,7 +338,7 @@ export default function ProjectVersionsPage() {
       scale: 0.98,
       transition: {
         duration: 0.2,
-        ease: [0.4, 0, 1, 1]
+        ease: [0.4, 0, 1, 1] as [number, number, number, number]
       }
     }
   }
@@ -354,7 +354,7 @@ export default function ProjectVersionsPage() {
       transition: {
         duration: 0.4,
         delay: i * 0.1,
-        ease: [0.4, 0, 0.2, 1]
+        ease: [0.4, 0, 0.2, 1] as [number, number, number, number]
       }
     })
   }
@@ -1016,7 +1016,7 @@ export default function ProjectVersionsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>确认删除版本</AlertDialogTitle>
               <AlertDialogDescription>
-                确定要删除版本 "{deleteVersion?.version}" 吗？此操作无法恢复。
+                确定要删除版本 {deleteVersion?.version} 吗？此操作无法恢复。
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

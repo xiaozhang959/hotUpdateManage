@@ -22,7 +22,7 @@ export default async function DashboardPage() {
       <NavBar user={session.user} />
       <main className="container mx-auto px-4 py-8 flex-1 min-h-[calc(100vh-200px)]">
         <EmailVerificationBanner 
-          emailVerified={session.user?.emailVerified || false} 
+          emailVerified={!!session.user?.emailVerified}
           email={session.user?.email}
         />
         

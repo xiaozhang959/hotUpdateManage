@@ -917,7 +917,7 @@ export default function AdminPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除用户</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除用户 "{deleteUser?.username}" 吗？
+              确定要删除用户 {deleteUser?.username} 吗？
               此操作将同时删除该用户的所有项目和版本，且无法恢复。
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -985,7 +985,7 @@ export default function AdminPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除项目</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除项目 "{deleteProject?.name}" 吗？
+              确定要删除项目 {deleteProject?.name} 吗？
               此操作将同时删除该项目的所有版本，且无法恢复。
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1209,7 +1209,7 @@ export default function AdminPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>确认重置API密钥</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要重置项目 "{resetApiKeyProject?.name}" 的API密钥吗？
+              确定要重置项目 {resetApiKeyProject?.name} 的API密钥吗？
               重置后，所有使用当前密钥的客户端将无法访问，需要更新为新密钥。
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1242,7 +1242,7 @@ export default function AdminPage() {
               版本管理
             </DialogTitle>
             <DialogDescription>
-              管理项目 "{managingVersions?.name}" 的所有版本
+              管理项目 {managingVersions?.name} 的所有版本
             </DialogDescription>
           </DialogHeader>
           
