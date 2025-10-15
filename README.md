@@ -158,7 +158,7 @@ npm run db:studio
 
 ### 🌐 Vercel 部署（推荐）
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/hot-update-manager)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/xiaozhang959/hotUpdateManage)
 
 #### 快速部署步骤
 
@@ -620,8 +620,8 @@ A: 修改 `.env.local` 中的 `RATE_LIMIT` 参数，默认 60 次/分钟。
 
 1. **Fork 项目**
    ```bash
-   git clone https://github.com/yourusername/hot-update-manager.git
-   cd hot-update-manager
+   git clone https://github.com/xiaozhang959/hotUpdateManage.git
+   cd hotUpdateManage
    git checkout -b feature/your-feature-name
    ```
 
