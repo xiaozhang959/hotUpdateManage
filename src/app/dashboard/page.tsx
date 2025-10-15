@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Package, Plus, Rocket, Shield, Users, Activity, Mail, BarChart3 } from 'lucide-react'
 import { EmailVerificationBanner } from '@/components/email-verification-banner'
 import { DashboardCharts } from '@/components/dashboard-charts'
+import { ApiTokenCard } from '@/components/api-token-card'
 
 export default async function DashboardPage() {
   const session = await auth()
@@ -38,7 +39,7 @@ export default async function DashboardPage() {
         <DashboardCharts isAdmin={session.user?.role === 'ADMIN'} />
 
         {/* 快捷操作卡片 */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
           <Card className="border-orange-200 dark:border-gray-700">
             <CardHeader>
               <Package className="h-10 w-10 text-orange-600 mb-2" />
@@ -66,13 +67,16 @@ export default async function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href="/docs">
+              <Link href="/docs/api">
                 <Button variant="outline" className="w-full">
                   查看文档
                 </Button>
               </Link>
             </CardContent>
           </Card>
+
+          {/* API Token 管理卡片 */}
+          <ApiTokenCard />
 
           {session.user?.role === 'ADMIN' && (
             <Card className="border-orange-200 dark:border-gray-700">

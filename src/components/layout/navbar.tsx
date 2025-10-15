@@ -32,7 +32,7 @@ export function NavBar({ user }: NavBarProps) {
   const navItems = [
     { href: '/dashboard', label: '仪表板', icon: Home },
     { href: '/projects', label: '项目管理', icon: Package },
-    { href: '/docs', label: 'API文档', icon: BookOpen },
+    { href: '/docs/api', label: 'API文档', icon: BookOpen },
     ...(isAdmin ? [
       { href: '/admin', label: '管理员', icon: Shield },
       { href: '/admin/settings', label: '系统设置', icon: Settings }

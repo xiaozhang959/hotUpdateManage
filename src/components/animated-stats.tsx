@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { motion, useMotionValue, useSpring, useInView } from 'framer-motion'
-import { Users, FolderOpen, TrendingUp, Activity } from 'lucide-react'
+import { Users, FolderOpen, TrendingUp } from 'lucide-react'
 import { useRef } from 'react'
 
 interface Stats {

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Package2, Rocket, Shield, Zap, ArrowDown, Sparkles, Code2, Layers } from 'lucide-react'
+import { Package2, Rocket, Shield, Zap, ArrowDown, ArrowRight, Sparkles, Code2 } from 'lucide-react'
 import AnimatedStats from '@/components/animated-stats'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { useEffect, useState, useRef } from 'react'
@@ -25,17 +25,8 @@ const staggerContainer = {
 }
 
 export default function Home() {
-  const [scrollY, setScrollY] = useState(0)
   const { scrollYProgress } = useScroll()
   const heroRef = useRef(null)
-  
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrollY(window.scrollY)
-    }
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
 
   const parallaxY = useTransform(scrollYProgress, [0, 1], [0, -100])
   const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0])
@@ -228,26 +219,30 @@ export default function Home() {
         </div>
       </motion.div>
 
-      {/* 代码示例区 */}
-      <motion.div
-        initial={{ opacity: 0, y: 50 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.8 }}
-        className="container mx-auto px-4 py-20"
-      >
-        <Card className="max-w-5xl mx-auto border-2 border-gray-200 dark:border-gray-700 shadow-2xl overflow-hidden">
-          <div className="bg-gradient-to-r from-orange-500 to-pink-500 p-1">
-            <div className="bg-white dark:bg-gray-900 p-8">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <CardTitle className="text-3xl mb-2">快速集成</CardTitle>
-                  <CardDescription className="text-lg">
-                    只需简单的API调用即可实现版本检测和自动更新
-                  </CardDescription>
-                </div>
-                <Code2 className="h-12 w-12 text-orange-500" />
-              </div>
+          {/* 代码示例区 */}
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="container mx-auto px-4 py-20"
+          >
+            <Card className="max-w-5xl mx-auto border-2 border-gray-200 dark:border-gray-700 shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-orange-500 to-pink-500 p-1">
+                <div className="bg-white dark:bg-gray-900 p-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <CardTitle className="text-3xl mb-2">快速集成</CardTitle>
+                      <CardDescription className="text-lg">
+                        只需简单的API调用即可实现版本检测和自动更新
+                        <Link href="/docs/api" className="text-orange-600 hover:text-orange-700 ml-2 inline-flex items-center gap-1">
+                          查看更多文档
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </CardDescription>
+                    </div>
+                    <Code2 className="h-12 w-12 text-orange-500" />
+                  </div>
               
               <motion.div 
                 whileHover={{ scale: 1.02 }}
@@ -271,16 +266,16 @@ export default function Home() {
                   <div className="pl-4 space-y-1">
                     <div className="text-gray-500">{'{'}</div>
                     <div className="text-gray-300 pl-4">
-                      <span className="text-blue-400">"version"</span>: <span className="text-yellow-400">"1.0.0"</span>,
+                      <span className="text-blue-400">&quot;version&quot;</span>: <span className="text-yellow-400">&quot;1.0.0&quot;</span>,
                     </div>
                     <div className="text-gray-300 pl-4">
-                      <span className="text-blue-400">"downloadUrl"</span>: <span className="text-yellow-400">"https://..."</span>,
+                      <span className="text-blue-400">&quot;downloadUrl&quot;</span>: <span className="text-yellow-400">&quot;https://...&quot;</span>,
                     </div>
                     <div className="text-gray-300 pl-4">
-                      <span className="text-blue-400">"forceUpdate"</span>: <span className="text-orange-400">false</span>,
+                      <span className="text-blue-400">&quot;forceUpdate&quot;</span>: <span className="text-orange-400">false</span>,
                     </div>
                     <div className="text-gray-300 pl-4">
-                      <span className="text-blue-400">"changelog"</span>: <span className="text-yellow-400">"更新说明"</span>
+                      <span className="text-blue-400">&quot;changelog&quot;</span>: <span className="text-yellow-400">&quot;更新说明&quot;</span>
                     </div>
                     <div className="text-gray-500">{'}'}</div>
                   </div>

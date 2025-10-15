@@ -21,6 +21,8 @@ model User {
   verificationExpiry DateTime?
   resetToken        String?   @unique
   resetTokenExpiry  DateTime?
+  apiToken          String?   @unique  // Bearer token for API authentication
+  apiTokenCreatedAt DateTime?          // Track when token was created
   projects          Project[]
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

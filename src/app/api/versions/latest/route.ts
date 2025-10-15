@@ -1,35 +1,71 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { versionCache } from '@/lib/cache/version-cache'
+import { validateBearerToken } from '@/lib/auth-bearer'
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    // 从请求头或请求体获取API密钥
-    const apiKeyFromHeader = req.headers.get('X-API-Key')
+    let project: any = null
     const body = await req.json().catch(() => ({}))
-    const apiKey = apiKeyFromHeader || body.apiKey
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'API密钥缺失' },
-        { status: 401 }
-      )
-    }
-
-    // 优化：只查询必要字段，使用索引查询
-    const project = await prisma.project.findUnique({
-      where: { apiKey },
-      select: {
-        id: true,
-        currentVersion: true
+    
+    // Try Bearer token authentication first
+    const user = await validateBearerToken(req)
+    if (user) {
+      // If using Bearer token, projectId must be provided in the request body
+      const { projectId } = body
+      
+      if (!projectId) {
+        return NextResponse.json(
+          { error: 'Project ID is required when using Bearer token authentication' },
+          { status: 400 }
+        )
       }
-    })
+      
+      // Verify project ownership
+      project = await prisma.project.findFirst({
+        where: {
+          id: projectId,
+          userId: user.id
+        },
+        select: {
+          id: true,
+          currentVersion: true
+        }
+      })
+      
+      if (!project) {
+        return NextResponse.json(
+          { error: 'Project not found or access denied' },
+          { status: 404 }
+        )
+      }
+    } else {
+      // Fall back to API key authentication
+      const apiKeyFromHeader = req.headers.get('X-API-Key')
+      const apiKey = apiKeyFromHeader || body.apiKey
 
-    if (!project) {
-      return NextResponse.json(
-        { error: 'API密钥无效' },
-        { status: 401 }
-      )
+      if (!apiKey) {
+        return NextResponse.json(
+          { error: 'Authentication required - provide Bearer token or API key' },
+          { status: 401 }
+        )
+      }
+
+      // 优化：只查询必要字段，使用索引查询
+      project = await prisma.project.findUnique({
+        where: { apiKey },
+        select: {
+          id: true,
+          currentVersion: true
+        }
+      })
+
+      if (!project) {
+        return NextResponse.json(
+          { error: 'Invalid API key' },
+          { status: 401 }
+        )
+      }
     }
 
     // 尝试从缓存获取版本信息
