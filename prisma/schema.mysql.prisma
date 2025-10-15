@@ -1,0 +1,114 @@
+// MySQL configuration for PlanetScale, AWS RDS, etc.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma" // Required for PlanetScale
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  username          String    @unique
+  password          String
+  role              String    @default("USER")
+  emailVerified     Boolean   @default(false)
+  verificationToken String?   @unique
+  verificationExpiry DateTime?
+  resetToken        String?   @unique
+  resetTokenExpiry  DateTime?
+  apiToken          String?   @unique
+  apiTokenCreatedAt DateTime?
+  projects          Project[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([email])
+  @@index([username])
+}
+
+model Project {
+  id              String    @id @default(cuid())
+  name            String
+  apiKey          String    @unique @default(uuid())
+  currentVersion  String?
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions        Version[]
+  apiRequests     ApiRequest[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([apiKey])
+}
+
+model Version {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version         String
+  downloadUrl     String   @db.VarChar(500)
+  downloadUrls    String   @default("[]") @db.Text
+  urlRotationIndex Int     @default(0)
+  md5             String   @db.VarChar(32)
+  forceUpdate     Boolean  @default(false)
+  changelog       String   @db.Text
+  isCurrent       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([projectId, version])
+  @@index([projectId])
+  @@index([isCurrent])
+}
+
+model SystemConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   @db.Text
+  type        String   @db.VarChar(50)
+  category    String   @db.VarChar(50)
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([category])
+  @@index([key])
+}
+
+model ApiRequest {
+  id         String   @id @default(cuid())
+  projectId  String?
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  endpoint   String   @db.VarChar(255)
+  method     String   @db.VarChar(10)
+  statusCode Int
+  responseTime Int
+  userAgent  String?  @db.Text
+  ipAddress  String?  @db.VarChar(45)
+  createdAt  DateTime @default(now())
+  
+  @@index([projectId])
+  @@index([endpoint])
+  @@index([createdAt])
+}
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  toEmail   String   @db.VarChar(255)
+  subject   String   @db.VarChar(255)
+  type      String   @db.VarChar(50)
+  status    String   @db.VarChar(20)
+  error     String?  @db.Text
+  createdAt DateTime @default(now())
+  
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@index([toEmail])
+}
