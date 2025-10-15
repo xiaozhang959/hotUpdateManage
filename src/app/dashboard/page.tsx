@@ -5,7 +5,9 @@ import { Footer } from '@/components/layout/footer'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Package, Plus, Rocket, Shield } from 'lucide-react'
+import { Package, Plus, Rocket, Shield, Users, Activity, Mail, BarChart3 } from 'lucide-react'
+import { EmailVerificationBanner } from '@/components/email-verification-banner'
+import { DashboardCharts } from '@/components/dashboard-charts'
 
 export default async function DashboardPage() {
   const session = await auth()
@@ -17,7 +19,12 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
       <NavBar user={session.user} />
-      <div className="container mx-auto px-4 py-8 flex-1">
+      <main className="container mx-auto px-4 py-8 flex-1 min-h-[calc(100vh-200px)]">
+        <EmailVerificationBanner 
+          emailVerified={session.user?.emailVerified || false} 
+          email={session.user?.email}
+        />
+        
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
             欢迎回来，{session.user?.name || session.user?.email}
@@ -27,7 +34,11 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* 统计数据和图表 */}
+        <DashboardCharts isAdmin={session.user?.role === 'ADMIN'} />
+
+        {/* 快捷操作卡片 */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
           <Card className="border-orange-200 dark:border-gray-700">
             <CardHeader>
               <Package className="h-10 w-10 text-orange-600 mb-2" />
@@ -82,7 +93,7 @@ export default async function DashboardPage() {
             </Card>
           )}
         </div>
-      </div>
+      </main>
       <Footer />
     </div>
   )

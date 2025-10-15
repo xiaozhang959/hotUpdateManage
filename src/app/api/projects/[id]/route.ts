@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { deleteFiles, deleteProjectUploadDir } from '@/lib/fileUtils'
 
 // 获取项目详情
 export async function GET(
@@ -101,6 +102,13 @@ export async function DELETE(
       where: {
         id: id,
         userId: session.user.id
+      },
+      include: {
+        versions: {
+          select: {
+            downloadUrl: true
+          }
+        }
       }
     })
 
@@ -108,9 +116,24 @@ export async function DELETE(
       return NextResponse.json({ error: '项目不存在' }, { status: 404 })
     }
 
+    // 收集所有版本的文件URL
+    const fileUrls = project.versions
+      .map(v => v.downloadUrl)
+      .filter(url => url && url.startsWith('/uploads/'))
+
+    // 删除项目（会级联删除所有版本）
     await prisma.project.delete({
       where: { id: id }
     })
+
+    // 删除所有关联的文件
+    if (fileUrls.length > 0) {
+      const deletedCount = await deleteFiles(fileUrls)
+      console.log(`删除了 ${deletedCount} 个文件`)
+    }
+
+    // 尝试删除项目的整个上传目录
+    await deleteProjectUploadDir(id)
 
     return NextResponse.json({ message: '删除成功' })
   } catch (error) {

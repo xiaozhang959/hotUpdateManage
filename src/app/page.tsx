@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { auth } from "@/lib/auth"
 import { redirect } from 'next/navigation'
-import { Package2, Rocket, Shield, Zap } from 'lucide-react'
+import { Package2, Rocket, Shield, Zap, Users, FolderOpen } from 'lucide-react'
+import HomeStats from '@/components/home-stats'
 
 export default async function Home() {
   const session = await auth()
@@ -22,7 +23,7 @@ export default async function Home() {
           <p className="text-xl text-gray-600 dark:text-gray-400 mb-8">
             为您的应用程序提供安全、可靠的版本控制和自动更新服务
           </p>
-          <div className="flex gap-4 justify-center">
+          <div className="flex gap-4 justify-center mb-8">
             <Link href="/login">
               <Button size="lg" className="bg-orange-600 hover:bg-orange-700">
                 立即登录
@@ -34,6 +35,9 @@ export default async function Home() {
               </Button>
             </Link>
           </div>
+          
+          {/* 统计数据展示 */}
+          <HomeStats />
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">

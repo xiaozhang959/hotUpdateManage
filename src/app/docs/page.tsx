@@ -16,7 +16,7 @@ export default async function DocsPage() {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
       <NavBar user={session.user} />
-      <div className="container mx-auto px-4 py-8 max-w-4xl flex-1">
+      <main className="container mx-auto px-4 py-8 max-w-4xl flex-1 min-h-[calc(100vh-200px)]">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
             API 文档
@@ -269,7 +269,7 @@ def check_update():
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
+      </main>
       <Footer />
     </div>
   )

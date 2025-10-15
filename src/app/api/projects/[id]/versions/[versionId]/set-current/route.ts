@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { versionCache } from '@/lib/cache/version-cache'
 
 // 设置当前活跃版本
 export async function POST(
@@ -58,6 +59,17 @@ export async function POST(
         data: { currentVersion: version.version }
       })
     })
+
+    // 清理项目缓存，确保下次请求获取最新的当前版本
+    await versionCache.clearProjectCache(params.id)
+    
+    // 预热缓存，缓存新的当前版本
+    const updatedVersion = await prisma.version.findUnique({
+      where: { id: params.versionId }
+    })
+    if (updatedVersion) {
+      await versionCache.warmupCache(params.id, updatedVersion)
+    }
 
     return NextResponse.json({
       message: '当前版本已设置为 ' + version.version

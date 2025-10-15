@@ -86,7 +86,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
-      <div className="container mx-auto px-4 py-8 max-w-2xl flex-1">
+      <main className="container mx-auto px-4 py-8 max-w-2xl flex-1 min-h-[calc(100vh-200px)]">
       <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">
         个人设置
       </h1>
@@ -201,7 +201,7 @@ export default function ProfilePage() {
           </Button>
         </CardFooter>
       </Card>
-      </div>
+      </main>
       <Footer />
     </div>
   )

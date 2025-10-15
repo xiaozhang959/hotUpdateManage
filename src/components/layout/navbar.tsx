@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Home, Package, Shield, User, LogOut, Menu, BookOpen } from 'lucide-react'
+import { Home, Package, Shield, User, LogOut, Menu, BookOpen, Settings } from 'lucide-react'
 import { useState } from 'react'
 
 interface NavBarProps {
@@ -33,7 +33,10 @@ export function NavBar({ user }: NavBarProps) {
     { href: '/dashboard', label: '仪表板', icon: Home },
     { href: '/projects', label: '项目管理', icon: Package },
     { href: '/docs', label: 'API文档', icon: BookOpen },
-    ...(isAdmin ? [{ href: '/admin', label: '管理员', icon: Shield }] : [])
+    ...(isAdmin ? [
+      { href: '/admin', label: '管理员', icon: Shield },
+      { href: '/admin/settings', label: '系统设置', icon: Settings }
+    ] : [])
   ]
 
   return (

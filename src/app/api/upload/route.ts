@@ -4,6 +4,7 @@ import { writeFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
 import { calculateMD5 } from '@/lib/crypto'
+import { getConfig } from '@/lib/system-config'
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,6 +12,12 @@ export async function POST(req: NextRequest) {
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: '未授权' }, { status: 401 })
+    }
+
+    // 检查是否允许上传
+    const uploadEnabled = await getConfig('upload_enabled')
+    if (!uploadEnabled) {
+      return NextResponse.json({ error: '系统暂时关闭文件上传功能' }, { status: 403 })
     }
 
     const formData = await req.formData()
@@ -25,16 +32,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '项目ID缺失' }, { status: 400 })
     }
 
+    // 安全检查
+    // 1. 文件大小限制 (从系统配置获取)
+    const maxUploadSize = await getConfig('max_upload_size') as number || (100 * 1024 * 1024)
+    if (file.size > maxUploadSize) {
+      const sizeMB = Math.round(maxUploadSize / 1024 / 1024)
+      return NextResponse.json({ error: `文件大小不能超过${sizeMB}MB` }, { status: 400 })
+    }
+
+    // 2. 文件名安全处理 - 移除潜在的危险字符
+    const safeFileName = file.name
+      .replace(/[<>:"|?*\\/]/g, '_')  // 移除文件系统不允许的字符
+      .replace(/\.{2,}/g, '_')         // 移除连续的点（防止目录遍历）
+      .replace(/^\./g, '_')            // 移除开头的点
+
+    // 3. 检查危险的文件扩展名（可执行文件）
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.sh', '.ps1', '.vbs', '.js', '.jar']
+    const fileExtension = path.extname(safeFileName).toLowerCase()
+    const isDangerous = dangerousExtensions.includes(fileExtension)
+    
+    // 如果是危险文件，添加.txt后缀使其不可执行
+    const finalFileName = isDangerous ? `${safeFileName}.txt` : safeFileName
+
     // 创建上传目录
     const uploadDir = path.join(process.cwd(), 'public', 'uploads', projectId)
     if (!existsSync(uploadDir)) {
       await mkdir(uploadDir, { recursive: true })
     }
 
-    // 生成文件名
+    // 生成唯一文件名
     const timestamp = Date.now()
-    const originalName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const fileName = `${timestamp}-${originalName}`
+    const randomString = Math.random().toString(36).substring(7)
+    const fileName = `${timestamp}-${randomString}-${finalFileName}`
     const filePath = path.join(uploadDir, fileName)
 
     // 读取文件内容
@@ -47,6 +76,9 @@ export async function POST(req: NextRequest) {
     // 写入文件
     await writeFile(filePath, buffer)
 
+    // 记录上传日志（可选：用于安全审计）
+    console.log(`File uploaded: ${fileName} by user: ${session.user.id}, size: ${file.size}, original: ${file.name}`)
+
     // 返回文件URL和MD5
     const fileUrl = `/uploads/${projectId}/${fileName}`
 
@@ -56,7 +88,9 @@ export async function POST(req: NextRequest) {
         url: fileUrl,
         md5: md5,
         fileName: fileName,
-        size: file.size
+        originalName: file.name,
+        size: file.size,
+        uploadedAt: new Date().toISOString()
       }
     })
   } catch (error) {

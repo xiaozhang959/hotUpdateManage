@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -14,10 +14,27 @@ import { Loader2 } from 'lucide-react'
 export default function LoginPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [systemConfig, setSystemConfig] = useState<any>(null)
   const [formData, setFormData] = useState({
-    email: '',
+    account: '', // 可以是邮箱或用户名
     password: ''
   })
+
+  useEffect(() => {
+    fetchSystemConfig()
+  }, [])
+
+  const fetchSystemConfig = async () => {
+    try {
+      const response = await fetch('/api/system/config')
+      if (response.ok) {
+        const config = await response.json()
+        setSystemConfig(config)
+      }
+    } catch (error) {
+      console.error('获取系统配置失败:', error)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,15 +42,22 @@ export default function LoginPage() {
 
     try {
       const result = await signIn('credentials', {
-        email: formData.email,
+        email: formData.account, // NextAuth 仍使用 email 字段，但我们传入 account（可能是用户名或邮箱）
         password: formData.password,
         redirect: false
       })
 
       if (result?.error) {
-        toast.error('登录失败', {
-          description: '邮箱或密码错误'
-        })
+        // 检查是否是邮箱验证错误
+        if (result.error.includes('验证')) {
+          toast.error('邮箱未验证', {
+            description: result.error
+          })
+        } else {
+          toast.error('登录失败', {
+            description: '用户名/邮箱或密码错误'
+          })
+        }
       } else {
         toast.success('登录成功')
         router.push('/dashboard')
@@ -50,29 +74,51 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl">登录</CardTitle>
-          <CardDescription>
-            输入您的邮箱和密码登录系统
-          </CardDescription>
-        </CardHeader>
+      <div className="w-full max-w-md space-y-4">
+        {/* 系统信息显示 */}
+        {systemConfig && (
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+              {systemConfig.site_name || '热更新管理系统'}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              {systemConfig.site_description || '专业的应用热更新管理平台'}
+            </p>
+          </div>
+        )}
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">登录</CardTitle>
+            <CardDescription>
+              输入您的用户名或邮箱登录系统
+            </CardDescription>
+          </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">邮箱</Label>
+              <Label htmlFor="account">用户名 / 邮箱</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="user@example.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                id="account"
+                type="text"
+                placeholder="用户名或邮箱"
+                value={formData.account}
+                onChange={(e) => setFormData({ ...formData, account: e.target.value })}
                 required
                 disabled={loading}
+                autoComplete="username"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">密码</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">密码</Label>
+                <Link 
+                  href="/forgot-password" 
+                  className="text-sm text-orange-600 hover:text-orange-700 hover:underline"
+                >
+                  忘记密码？
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -83,7 +129,7 @@ export default function LoginPage() {
               />
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col gap-4">
+          <CardFooter className="flex flex-col gap-4 pt-6">
             <Button
               type="submit"
               className="w-full bg-orange-600 hover:bg-orange-700"
@@ -106,7 +152,8 @@ export default function LoginPage() {
             </div>
           </CardFooter>
         </form>
-      </Card>
+        </Card>
+      </div>
     </div>
   )
 }

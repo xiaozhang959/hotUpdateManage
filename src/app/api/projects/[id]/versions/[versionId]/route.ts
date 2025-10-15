@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { deleteFile } from '@/lib/fileUtils'
+import { versionCache } from '@/lib/cache/version-cache'
 
 // 删除版本
 export async function DELETE(
@@ -37,6 +39,9 @@ export async function DELETE(
     if (!version) {
       return NextResponse.json({ error: '版本不存在' }, { status: 404 })
     }
+
+    // 保存文件URL用于删除
+    const fileUrlToDelete = version.downloadUrl
 
     // 如果删除的是当前版本，需要更新项目的当前版本
     if (version.isCurrent || project.currentVersion === version.version) {
@@ -80,6 +85,14 @@ export async function DELETE(
         where: { id: params.versionId }
       })
     }
+
+    // 删除关联的文件
+    if (fileUrlToDelete) {
+      await deleteFile(fileUrlToDelete)
+    }
+    
+    // 清理项目缓存
+    await versionCache.clearProjectCache(params.id)
 
     return NextResponse.json({ message: '版本已删除' })
   } catch (error) {

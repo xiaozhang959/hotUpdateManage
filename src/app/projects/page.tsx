@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Footer } from '@/components/layout/footer'
+import { EmailVerificationBanner } from '@/components/email-verification-banner'
 import {
   Button,
   Card,
@@ -71,6 +73,7 @@ interface Project {
 
 export default function ProjectsPage() {
   const router = useRouter()
+  const { data: session } = useSession()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -78,9 +81,19 @@ export default function ProjectsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [showApiKeys, setShowApiKeys] = useState<{ [key: string]: boolean }>({})
   const [deleteProject, setDeleteProject] = useState<Project | null>(null)
+  const [requireEmailVerification, setRequireEmailVerification] = useState(false)
 
   useEffect(() => {
     fetchProjects()
+    // 检查是否需要邮箱验证
+    fetch('/api/system/config')
+      .then(res => res.json())
+      .then(data => {
+        if (data.require_email_verification) {
+          setRequireEmailVerification(true)
+        }
+      })
+      .catch(() => {})
   }, [])
 
   const fetchProjects = async () => {
@@ -103,6 +116,14 @@ export default function ProjectsPage() {
       toast.error('项目名称不能为空')
       return
     }
+    
+    // 检查邮箱验证状态
+    if (requireEmailVerification && session?.user && !session.user.emailVerified) {
+      toast.error('请先验证您的邮箱', {
+        description: '验证邮箱后才能创建项目'
+      })
+      return
+    }
 
     setCreating(true)
     try {
@@ -112,12 +133,15 @@ export default function ProjectsPage() {
         body: JSON.stringify({ name: newProjectName })
       })
 
+      const data = await response.json()
+      
       if (!response.ok) {
-        throw new Error('创建项目失败')
+        // 使用后端返回的错误消息
+        toast.error(data.error || '创建项目失败')
+        return
       }
 
-      const project = await response.json()
-      setProjects([project, ...projects])
+      setProjects([data, ...projects])
       setNewProjectName('')
       setDialogOpen(false)
       toast.success('项目创建成功')
@@ -171,7 +195,12 @@ export default function ProjectsPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
-      <div className="container mx-auto px-4 py-8 flex-1">
+      <main className="container mx-auto px-4 py-8 flex-1 min-h-[calc(100vh-200px)]">
+      <EmailVerificationBanner 
+        emailVerified={session?.user?.emailVerified || false} 
+        email={session?.user?.email}
+      />
+      
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
@@ -352,7 +381,7 @@ export default function ProjectsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      </div>
+      </main>
       <Footer />
     </div>
   )

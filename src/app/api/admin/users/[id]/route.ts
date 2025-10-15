@@ -6,10 +6,11 @@ import bcrypt from 'bcryptjs'
 // 更新用户角色（仅管理员）
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
+    const { id } = await params
 
     if (!session?.user?.id || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: '无权限访问' }, { status: 403 })
@@ -18,7 +19,7 @@ export async function PATCH(
     const { role, username, password } = await req.json()
 
     // 不允许修改自己的角色
-    if (params.id === session.user.id && role && role !== session.user.role) {
+    if (id === session.user.id && role && role !== session.user.role) {
       return NextResponse.json(
         { error: '不能修改自己的角色' },
         { status: 400 }
@@ -31,7 +32,7 @@ export async function PATCH(
     if (password) updateData.password = await bcrypt.hash(password, 10)
 
     const user = await prisma.user.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
       select: {
         id: true,
@@ -54,17 +55,18 @@ export async function PATCH(
 // 删除用户（仅管理员）
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
+    const { id } = await params
 
     if (!session?.user?.id || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: '无权限访问' }, { status: 403 })
     }
 
     // 不允许删除自己
-    if (params.id === session.user.id) {
+    if (id === session.user.id) {
       return NextResponse.json(
         { error: '不能删除自己的账号' },
         { status: 400 }
@@ -72,7 +74,7 @@ export async function DELETE(
     }
 
     await prisma.user.delete({
-      where: { id: params.id }
+      where: { id }
     })
 
     return NextResponse.json({ message: '用户已删除' })

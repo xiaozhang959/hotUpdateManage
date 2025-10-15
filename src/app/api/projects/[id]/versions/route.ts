@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { calculateMD5, generateRandomMD5 } from '@/lib/crypto'
+import { createHash } from 'crypto'
+import { versionCache } from '@/lib/cache/version-cache'
 
 // 获取项目的所有版本
 export async function GET(
@@ -72,11 +73,15 @@ export async function POST(
       return NextResponse.json({ error: '项目不存在' }, { status: 404 })
     }
 
-    const { version, downloadUrl, changelog, forceUpdate, isUrl } = await req.json()
+    const { version, downloadUrl, downloadUrls, changelog, forceUpdate, md5: providedMd5 } = await req.json()
 
-    if (!version || !downloadUrl || !changelog) {
+    // 兼容性处理：如果提供了downloadUrls数组，使用它；否则使用单个downloadUrl
+    const urls = downloadUrls && downloadUrls.length > 0 ? downloadUrls : [downloadUrl]
+    const primaryUrl = urls[0]
+
+    if (!version || !primaryUrl) {
       return NextResponse.json(
-        { error: '版本号、下载链接和更新日志为必填项' },
+        { error: '请提供版本号和下载链接' },
         { status: 400 }
       )
     }
@@ -98,8 +103,8 @@ export async function POST(
       )
     }
 
-    // 如果是URL链接，生成随机MD5；如果是文件，后续会计算真实MD5
-    const md5 = isUrl ? generateRandomMD5() : generateRandomMD5() // 暂时都用随机MD5
+    // 使用提供的MD5或生成一个随机的MD5
+    const md5Hash = providedMd5 || createHash('md5').update(primaryUrl + Date.now()).digest('hex')
 
     // 使用事务确保数据一致性
     const newVersion = await prisma.$transaction(async (tx) => {
@@ -114,9 +119,10 @@ export async function POST(
         data: {
           projectId: id,
           version,
-          downloadUrl,
-          md5,
-          changelog,
+          downloadUrl: primaryUrl, // 主链接，用于向后兼容
+          downloadUrls: JSON.stringify(urls), // 存储所有链接
+          md5: md5Hash,
+          changelog: changelog || '未提供更新日志',
           forceUpdate: forceUpdate || false,
           isCurrent: true
         }
@@ -130,6 +136,12 @@ export async function POST(
 
       return createdVersion
     })
+
+    // 清理该项目的缓存，确保下次请求获取最新数据
+    await versionCache.clearProjectCache(id)
+    
+    // 预热缓存（可选）
+    await versionCache.warmupCache(id, newVersion)
 
     return NextResponse.json(newVersion)
   } catch (error) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { initCache } from '@/lib/cache/init-cache'
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,6 +54,9 @@ export async function POST(request: NextRequest) {
         role: 'ADMIN', // 设置为管理员角色
       },
     })
+    
+    // 清除初始化状态缓存
+    initCache.clearCache()
 
     // 返回成功消息（不返回密码）
     return NextResponse.json({

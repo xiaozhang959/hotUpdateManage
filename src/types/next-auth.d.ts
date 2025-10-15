@@ -5,10 +5,12 @@ declare module "next-auth" {
     user: {
       id: string
       role: string
+      emailVerified?: boolean
     } & DefaultSession["user"]
   }
 
   interface User {
     role: string
+    emailVerified?: boolean
   }
 }

@@ -41,6 +41,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { FileUpload } from '@/components/ui/file-upload'
 import { toast } from 'sonner'
 import {
   Plus,
@@ -61,13 +62,15 @@ import {
   Eye,
   EyeOff,
   Key,
-  Package
+  Package,
+  X
 } from 'lucide-react'
 
 interface Version {
   id: string
   version: string
   downloadUrl: string
+  downloadUrls?: string // JSON字符串，存储多个链接
   md5: string
   forceUpdate: boolean
   changelog: string
@@ -98,20 +101,39 @@ export default function ProjectVersionsPage() {
   const [showApiKey, setShowApiKey] = useState(false)
   const [copiedCommand, setCopiedCommand] = useState(false)
   const [activeTab, setActiveTab] = useState('versions')
+  const [systemConfig, setSystemConfig] = useState<any>(null)
 
   const [formData, setFormData] = useState({
     version: '',
     downloadUrl: '',
+    downloadUrls: [''] as string[], // 多链接数组
     changelog: '',
     forceUpdate: false,
-    isUrl: true,
     file: null as File | null,
     uploadMethod: 'url' as 'url' | 'file'
   })
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     fetchProject()
+    fetchSystemConfig()
   }, [projectId])
+
+  const fetchSystemConfig = async () => {
+    try {
+      const response = await fetch('/api/system/config')
+      if (response.ok) {
+        const config = await response.json()
+        setSystemConfig(config)
+        // 如果文件上传被禁用，默认选择URL方式
+        if (!config.upload_enabled && formData.uploadMethod === 'file') {
+          setFormData(prev => ({ ...prev, uploadMethod: 'url' }))
+        }
+      }
+    } catch (error) {
+      console.error('获取系统配置失败:', error)
+    }
+  }
 
   const fetchProject = async () => {
     try {
@@ -130,14 +152,18 @@ export default function ProjectVersionsPage() {
   }
 
   const handleCreateVersion = async () => {
-    if (!formData.version || !formData.changelog) {
-      toast.error('请填写所有必填字段')
+    if (!formData.version) {
+      toast.error('请填写版本号')
       return
     }
 
-    if (formData.uploadMethod === 'url' && !formData.downloadUrl) {
-      toast.error('请填写下载链接')
-      return
+    if (formData.uploadMethod === 'url') {
+      // 过滤空链接并检查是否至少有一个有效链接
+      const validUrls = formData.downloadUrls.filter(url => url.trim() !== '')
+      if (validUrls.length === 0) {
+        toast.error('请至少填写一个下载链接')
+        return
+      }
     }
 
     if (formData.uploadMethod === 'file' && !formData.file) {
@@ -147,11 +173,13 @@ export default function ProjectVersionsPage() {
 
     setCreating(true)
     try {
-      let downloadUrl = formData.downloadUrl
+      let downloadUrls: string[] = []
+      let downloadUrl = ''
       let md5 = ''
 
       // 如果是文件上传
       if (formData.uploadMethod === 'file' && formData.file) {
+        setUploading(true)
         const uploadFormData = new FormData()
         uploadFormData.append('file', formData.file)
         uploadFormData.append('projectId', projectId)
@@ -166,8 +194,14 @@ export default function ProjectVersionsPage() {
         }
 
         const uploadResult = await uploadResponse.json()
-        downloadUrl = uploadResult.data.url
+        downloadUrl = window.location.origin + uploadResult.data.url
+        downloadUrls = [downloadUrl]
         md5 = uploadResult.data.md5
+        setUploading(false)
+      } else {
+        // URL方式，过滤有效链接
+        downloadUrls = formData.downloadUrls.filter(url => url.trim() !== '')
+        downloadUrl = downloadUrls[0] // 向后兼容，第一个链接作为主链接
       }
 
       // 创建版本
@@ -177,6 +211,7 @@ export default function ProjectVersionsPage() {
         body: JSON.stringify({
           version: formData.version,
           downloadUrl: downloadUrl,
+          downloadUrls: downloadUrls,
           changelog: formData.changelog,
           forceUpdate: formData.forceUpdate,
           md5: md5
@@ -192,9 +227,9 @@ export default function ProjectVersionsPage() {
       setFormData({
         version: '',
         downloadUrl: '',
+        downloadUrls: [''],
         changelog: '',
         forceUpdate: false,
-        isUrl: true,
         file: null,
         uploadMethod: 'url'
       })
@@ -326,7 +361,7 @@ export default function ProjectVersionsPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
-      <div className="container mx-auto px-4 py-8 flex-1">
+      <main className="container mx-auto px-4 py-8 flex-1 min-h-[calc(100vh-200px)]">
         <div className="mb-8">
           <Button
             variant="ghost"
@@ -471,22 +506,125 @@ export default function ProjectVersionsPage() {
                     }
                   />
                 </div>
+                
+                {/* 上传方式选择 */}
                 <div className="space-y-2">
-                  <Label htmlFor="downloadUrl">下载链接 *</Label>
-                  <Input
-                    id="downloadUrl"
-                    placeholder="https://example.com/app-v1.0.0.apk"
-                    value={formData.downloadUrl}
-                    onChange={(e) =>
-                      setFormData({ ...formData, downloadUrl: e.target.value })
-                    }
-                  />
-                  <p className="text-xs text-gray-500">
-                    可以是文件直链或上传后的URL
-                  </p>
+                  <Label>上传方式</Label>
+                  {systemConfig?.upload_enabled === false && (
+                    <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                      <p className="text-sm text-yellow-800 flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4" />
+                        系统管理员已禁用文件上传功能，请使用下载链接方式
+                      </p>
+                    </div>
+                  )}
+                  <RadioGroup
+                    value={formData.uploadMethod}
+                    onValueChange={(value: 'url' | 'file') => {
+                      if (value === 'file' && systemConfig?.upload_enabled === false) {
+                        toast.error('文件上传功能已被系统管理员禁用')
+                        return
+                      }
+                      setFormData({ ...formData, uploadMethod: value })
+                    }}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="url" id="url" />
+                      <Label htmlFor="url" className="cursor-pointer">
+                        使用下载链接
+                      </Label>
+                    </div>
+                    <div className={`flex items-center space-x-2 ${systemConfig?.upload_enabled === false ? 'opacity-50' : ''}`}>
+                      <RadioGroupItem 
+                        value="file" 
+                        id="file" 
+                        disabled={systemConfig?.upload_enabled === false}
+                      />
+                      <Label 
+                        htmlFor="file" 
+                        className={`${systemConfig?.upload_enabled === false ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      >
+                        上传本地文件
+                        {systemConfig?.upload_enabled === false && (
+                          <span className="text-xs text-red-500 ml-1">(已禁用)</span>
+                        )}
+                      </Label>
+                    </div>
+                  </RadioGroup>
                 </div>
+                {/* 根据选择显示不同的输入 */}
+                {formData.uploadMethod === 'url' ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>下载链接 *</Label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            downloadUrls: [...formData.downloadUrls, '']
+                          })
+                        }}
+                        className="h-7 px-2"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        添加链接
+                      </Button>
+                    </div>
+                    {formData.downloadUrls.map((url, index) => (
+                      <div key={index} className="flex gap-2">
+                        <Input
+                          placeholder={`链接 ${index + 1}: https://example.com/app-v1.0.0.apk`}
+                          value={url}
+                          onChange={(e) => {
+                            const newUrls = [...formData.downloadUrls]
+                            newUrls[index] = e.target.value
+                            setFormData({ ...formData, downloadUrls: newUrls })
+                          }}
+                        />
+                        {formData.downloadUrls.length > 1 && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              const newUrls = formData.downloadUrls.filter(
+                                (_, i) => i !== index
+                              )
+                              setFormData({ ...formData, downloadUrls: newUrls })
+                            }}
+                            className="h-10 w-10 p-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    <p className="text-xs text-gray-500">
+                      支持多个APK文件下载链接，API将随机返回其中一个链接
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>选择文件 *</Label>
+                    <FileUpload
+                      onFileSelect={(file) => setFormData({ ...formData, file })}
+                      onFileRemove={() => setFormData({ ...formData, file: null })}
+                      selectedFile={formData.file}
+                      maxSize={systemConfig?.max_upload_size || 100 * 1024 * 1024}
+                      uploading={uploading}
+                      disabled={creating}
+                    />
+                  </div>
+                )}
+
                 <div className="space-y-2">
-                  <Label htmlFor="changelog">更新日志 *</Label>
+                  <Label htmlFor="changelog">
+                    更新日志
+                    <span className="text-xs text-gray-500 ml-1">（可选）</span>
+                  </Label>
                   <textarea
                     id="changelog"
                     className="w-full min-h-[100px] px-3 py-2 border rounded-md"
@@ -513,13 +651,13 @@ export default function ProjectVersionsPage() {
               <DialogFooter>
                 <Button
                   onClick={handleCreateVersion}
-                  disabled={creating}
+                  disabled={creating || uploading}
                   className="bg-orange-600 hover:bg-orange-700"
                 >
-                  {creating ? (
+                  {creating || uploading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      发布中...
+                      {uploading ? '上传中...' : '发布中...'}
                     </>
                   ) : (
                     '发布版本'
@@ -617,14 +755,85 @@ export default function ProjectVersionsPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <a
-                              href={version.downloadUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-700"
-                            >
-                              <Link2 className="h-4 w-4" />
-                            </a>
+                            {(() => {
+                              // 解析多链接
+                              let urls = [version.downloadUrl]
+                              if (version.downloadUrls) {
+                                try {
+                                  const parsedUrls = JSON.parse(version.downloadUrls)
+                                  if (Array.isArray(parsedUrls) && parsedUrls.length > 0) {
+                                    urls = parsedUrls
+                                  }
+                                } catch (e) {
+                                  console.error('解析downloadUrls失败:', e)
+                                }
+                              }
+                              
+                              // 如果只有一个链接，显示原始样式
+                              if (urls.length === 1) {
+                                return (
+                                  <a
+                                    href={urls[0]}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:text-blue-700"
+                                    title="下载链接"
+                                  >
+                                    <Link2 className="h-4 w-4" />
+                                  </a>
+                                )
+                              }
+                              
+                              // 多个链接时显示下拉菜单
+                              return (
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-blue-600 hover:text-blue-700"
+                                      title={`${urls.length} 个下载链接`}
+                                    >
+                                      <Link2 className="h-4 w-4 mr-1" />
+                                      <span className="text-xs">{urls.length}</span>
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="max-w-md">
+                                    <DialogHeader>
+                                      <DialogTitle>下载链接列表</DialogTitle>
+                                      <DialogDescription>
+                                        版本 {version.version} 的所有下载链接
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                                      {urls.map((url, index) => (
+                                        <div key={index} className="flex items-center gap-2">
+                                          <a
+                                            href={url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-blue-600 hover:text-blue-700 text-sm truncate flex-1"
+                                            title={url}
+                                          >
+                                            链接 {index + 1}: {url}
+                                          </a>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(url)
+                                              toast.success('链接已复制')
+                                            }}
+                                          >
+                                            <Copy className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+                              )
+                            })()}
                             <Button
                               size="sm"
                               variant="ghost"
@@ -821,7 +1030,7 @@ export default function ProjectVersionsPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
+      </main>
       <Footer />
     </div>
   )
