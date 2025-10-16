@@ -54,8 +54,8 @@ export async function POST(req: NextRequest) {
     // 如果是危险文件，添加.txt后缀使其不可执行
     const finalFileName = isDangerous ? `${safeFileName}.txt` : safeFileName
 
-    // 创建上传目录
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', projectId)
+    // 创建上传目录（在public目录之外）
+    const uploadDir = path.join(process.cwd(), 'uploads', projectId)
     if (!existsSync(uploadDir)) {
       await mkdir(uploadDir, { recursive: true })
     }

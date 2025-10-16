@@ -1,0 +1,19 @@
+[DEFAULT]
+目录 = F:/懒人精灵/懒人高级版1.7.0/script
+脚本 = hg短剧
+更新 = FTP服务器
+
+[FTP]
+主机 = 
+端口 = 
+用户 = 
+密码 = 
+
+[OSS]
+accesskeyid = 
+accesskeysecret = 
+
+[LZY]
+login = 
+phpdisk = 
+

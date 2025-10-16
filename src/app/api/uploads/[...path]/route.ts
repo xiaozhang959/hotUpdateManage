@@ -55,12 +55,17 @@ export async function GET(
     
     const contentType = mimeTypes[ext] || 'application/octet-stream'
     
-    // 返回文件内容
+    // 获取文件名
+    const fileName = path.basename(normalizedPath)
+    
+    // 返回文件内容，设置为附件下载
     return new NextResponse(new Uint8Array(file), {
       headers: {
         'Content-Type': contentType,
         'Content-Length': file.length.toString(),
         'Cache-Control': 'public, max-age=31536000, immutable',
+        // 设置为 attachment 强制触发下载
+        'Content-Disposition': `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
       },
     })
   } catch (error) {

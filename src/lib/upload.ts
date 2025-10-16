@@ -2,7 +2,7 @@ import { writeFile } from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 
-export const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
+export const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 export const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 export async function saveUploadedFile(file: File): Promise<{ filePath: string; md5: string }> {

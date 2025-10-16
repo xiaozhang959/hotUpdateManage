@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // 配置静态文件服务
+  // 配置URL重写规则
   async rewrites() {
     return [
       {

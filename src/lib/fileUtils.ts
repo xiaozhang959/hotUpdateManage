@@ -84,7 +84,7 @@ export async function deleteFiles(fileUrls: string[]): Promise<number> {
  */
 export async function deleteProjectUploadDir(projectId: string): Promise<boolean> {
   try {
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', projectId)
+  const uploadDir = path.join(process.cwd(), 'uploads', projectId);
     
     if (!existsSync(uploadDir)) {
       console.log(`项目上传目录不存在: ${uploadDir}`)
@@ -115,7 +115,7 @@ export async function deleteProjectUploadDir(projectId: string): Promise<boolean
  */
 export async function cleanupOrphanFiles(activeFileUrls: string[]): Promise<number> {
   try {
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads')
+  const uploadsDir = path.join(process.cwd(), 'uploads');
     
     if (!existsSync(uploadsDir)) {
       return 0
