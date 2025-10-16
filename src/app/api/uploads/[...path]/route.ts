@@ -58,6 +58,12 @@ export async function GET(
     // 获取文件名
     const fileName = path.basename(normalizedPath)
     
+    // 处理文件名编码，确保兼容性
+    // 对于ASCII字符使用原始文件名，对于非ASCII字符使用URL编码
+    const asciiFileName = fileName.replace(/[^\x00-\x7F]/g, '_')
+    const encodedFileName = encodeURIComponent(fileName)
+      .replace(/'/g, '%27') // 确保单引号被正确编码
+    
     // 返回文件内容，设置为附件下载
     return new NextResponse(new Uint8Array(file), {
       headers: {
@@ -65,7 +71,8 @@ export async function GET(
         'Content-Length': file.length.toString(),
         'Cache-Control': 'public, max-age=31536000, immutable',
         // 设置为 attachment 强制触发下载
-        'Content-Disposition': `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+        // 使用安全的ASCII文件名作为主要值，UTF-8编码作为备选
+        'Content-Disposition': `attachment; filename="${asciiFileName}"; filename*=UTF-8''${encodedFileName}`,
       },
     })
   } catch (error) {
