@@ -2,12 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { initCache } from '@/lib/cache/init-cache'
+import { initState, needsInitialization } from '@/lib/server/init-state'
+import { revalidatePath } from 'next/cache'
 
 export async function POST(request: NextRequest) {
   try {
-    // 再次检查是否需要初始化
+    // 三重检查：确保系统真的需要初始化
+    // 1. 使用全局状态检查
+    const needsInit = await needsInitialization()
+    if (!needsInit) {
+      return NextResponse.json(
+        { error: '系统已经初始化，禁止重复初始化' },
+        { status: 403 }
+      )
+    }
+    
+    // 2. 直接查询数据库再次确认
     const userCount = await prisma.user.count()
     if (userCount > 0) {
+      // 更新全局状态
+      initState.markAsInitialized()
       return NextResponse.json(
         { error: '系统已经初始化' },
         { status: 400 }
@@ -57,6 +71,14 @@ export async function POST(request: NextRequest) {
     
     // 清除初始化状态缓存
     initCache.clearCache()
+    
+    // 更新全局初始化状态
+    initState.markAsInitialized()
+    
+    // 重新验证所有路径的缓存
+    revalidatePath('/', 'layout')
+    revalidatePath('/init', 'layout')
+    revalidatePath('/login', 'layout')
 
     // 返回成功消息（不返回密码）
     return NextResponse.json({

@@ -8,6 +8,7 @@ import { getConfig } from "@/lib/system-config"
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma) as any,
   session: { strategy: "jwt" },
+  trustHost: true,
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -43,7 +44,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // 检查是否需要邮箱验证
         const requireEmailVerification = await getConfig('require_email_verification')
         if (requireEmailVerification && !user.emailVerified) {
-          throw new Error('请先验证您的邮箱后再登录')
+          // 返回 null 并通过 error 参数传递消息
+          return null
         }
 
         return {

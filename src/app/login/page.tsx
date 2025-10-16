@@ -41,6 +41,42 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
+      // 先进行预检查
+      const preCheckResponse = await fetch('/api/auth/pre-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account: formData.account,
+          password: formData.password
+        })
+      })
+      
+      const preCheckResult = await preCheckResponse.json()
+      
+      if (!preCheckResult.success) {
+        if (preCheckResult.error === 'email_not_verified') {
+          toast.error('邮箱未验证', {
+            description: preCheckResult.message,
+            action: {
+              label: '重新发送验证邮件',
+              onClick: () => {
+                // 可以跳转到重新发送验证邮件页面
+                router.push(`/resend-verification?email=${encodeURIComponent(preCheckResult.email)}`)
+              }
+            }
+          })
+          setLoading(false)
+          return
+        } else {
+          toast.error('登录失败', {
+            description: preCheckResult.error || '用户名/邮箱或密码错误'
+          })
+          setLoading(false)
+          return
+        }
+      }
+      
+      // 预检查通过，进行正式登录
       const result = await signIn('credentials', {
         email: formData.account, // NextAuth 仍使用 email 字段，但我们传入 account（可能是用户名或邮箱）
         password: formData.password,
@@ -48,16 +84,9 @@ export default function LoginPage() {
       })
 
       if (result?.error) {
-        // 检查是否是邮箱验证错误
-        if (result.error.includes('验证')) {
-          toast.error('邮箱未验证', {
-            description: result.error
-          })
-        } else {
-          toast.error('登录失败', {
-            description: '用户名/邮箱或密码错误'
-          })
-        }
+        toast.error('登录失败', {
+          description: '用户名/邮箱或密码错误'
+        })
       } else {
         toast.success('登录成功')
         router.push('/dashboard')
