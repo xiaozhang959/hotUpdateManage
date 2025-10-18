@@ -54,23 +54,8 @@ export async function POST(req: NextRequest) {
     // 如果是危险文件，添加.txt后缀使其不可执行
     const processedFileName = isDangerous ? `${safeFileName}.txt` : safeFileName
     
-    // 4. 对文件名进行URL编码处理
-    // 分离文件名和扩展名
-    const nameWithoutExt = path.basename(processedFileName, path.extname(processedFileName))
-    const ext = path.extname(processedFileName)
-    
-    // 对文件名部分进行URL编码（保留扩展名不编码）
-    // 只对非ASCII字符进行编码，保持ASCII字符可读性
-    const encodedName = nameWithoutExt.split('').map(char => {
-      // 如果是ASCII字符且不是特殊字符，保持原样
-      if (/^[a-zA-Z0-9._()-]$/.test(char)) {
-        return char
-      }
-      // 否则进行URL编码
-      return encodeURIComponent(char)
-    }).join('')
-    
-    const finalFileName = encodedName + ext
+    // 4. 生成最终文件名（不进行URL编码，保持原始文件名）
+    const finalFileName = processedFileName
 
     // 创建上传目录（在public目录之外）
     const uploadDir = path.join(process.cwd(), 'uploads', projectId)
@@ -97,8 +82,8 @@ export async function POST(req: NextRequest) {
     // 记录上传日志（可选：用于安全审计）
     console.log(`File uploaded: ${fileName} by user: ${session.user.id}, size: ${file.size}, original: ${file.name}`)
 
-    // 返回文件URL和MD5
-    const fileUrl = `/uploads/${projectId}/${fileName}`
+    // 返回文件URL和MD5（对URL进行编码）
+    const fileUrl = `/uploads/${projectId}/${encodeURIComponent(fileName)}`
 
     return NextResponse.json({
       success: true,

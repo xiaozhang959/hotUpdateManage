@@ -11,8 +11,11 @@ export async function GET(
     // 等待 params
     const { path: pathSegments } = await params
     
-    // 重构路径
+    // 重构路径 (Next.js已经解码了URL)
     const filePath = pathSegments.join('/')
+    
+    // 调试日志
+    console.log('Requested file path:', filePath)
     
     // 构建完整的文件路径
     const fullPath = path.join(process.cwd(), 'uploads', filePath)
@@ -27,6 +30,51 @@ export async function GET(
     
     // 检查文件是否存在
     if (!existsSync(normalizedPath)) {
+      console.error('File not found at:', normalizedPath)
+      // 尝试查找未编码的文件名（兼容旧文件）
+      const decodedPath = path.join(
+        path.dirname(normalizedPath),
+        decodeURIComponent(path.basename(normalizedPath))
+      )
+      console.log('Trying decoded path:', decodedPath)
+      
+      if (existsSync(decodedPath)) {
+        // 使用解码后的路径
+        const file = await readFile(decodedPath)
+        const ext = path.extname(decodedPath).toLowerCase()
+        const mimeTypes: Record<string, string> = {
+          '.json': 'application/json',
+          '.txt': 'text/plain',
+          '.zip': 'application/zip',
+          '.apk': 'application/vnd.android.package-archive',
+          '.ipa': 'application/octet-stream',
+          '.exe': 'application/octet-stream',
+          '.dmg': 'application/octet-stream',
+          '.pkg': 'application/octet-stream',
+          '.deb': 'application/octet-stream',
+          '.rpm': 'application/octet-stream',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.png': 'image/png',
+          '.gif': 'image/gif',
+          '.pdf': 'application/pdf',
+          '.lrj': 'application/octet-stream',
+        }
+        const contentType = mimeTypes[ext] || 'application/octet-stream'
+        const fileName = path.basename(decodedPath)
+        const asciiFileName = fileName.replace(/[^\x00-\x7F]/g, '_')
+        const encodedFileName = encodeURIComponent(fileName).replace(/'/g, '%27')
+        
+        return new NextResponse(new Uint8Array(file), {
+          headers: {
+            'Content-Type': contentType,
+            'Content-Length': file.length.toString(),
+            'Cache-Control': 'public, max-age=31536000, immutable',
+            'Content-Disposition': `attachment; filename="${asciiFileName}"; filename*=UTF-8''${encodedFileName}`,
+          },
+        })
+      }
+      
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
     

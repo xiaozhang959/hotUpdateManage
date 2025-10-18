@@ -140,33 +140,22 @@ export async function POST(req: NextRequest) {
       // Calculate MD5
       md5 = crypto.createHash('md5').update(buffer).digest('hex')
 
-      // Save file with URL-encoded filename
+      // Save file
       const uploadDir = path.join(process.cwd(), 'uploads', projectId)
       await fs.mkdir(uploadDir, { recursive: true })
       
-      // 对文件名进行安全处理和URL编码
+      // 对文件名进行安全处理（不进行URL编码）
       const safeFileName = file.name
         .replace(/[<>:"|?*\\/]/g, '_')  // 移除文件系统不允许的字符
         .replace(/\.{2,}/g, '_')         // 移除连续的点
         .replace(/^\./g, '_');           // 移除开头的点
       
-      // 分离文件名和扩展名
-      const ext = path.extname(safeFileName);
-      const nameWithoutExt = path.basename(safeFileName, ext);
-      
-      // 对文件名部分进行URL编码
-      const encodedName = nameWithoutExt.split('').map(char => {
-        if (/^[a-zA-Z0-9._()-]$/.test(char)) {
-          return char;
-        }
-        return encodeURIComponent(char);
-      }).join('');
-      
-      const fileName = `${version}_${Date.now()}_${encodedName}${ext}`
+      const fileName = `${version}_${Date.now()}_${safeFileName}`
       const filePath = path.join(uploadDir, fileName)
       await fs.writeFile(filePath, buffer)
 
-      downloadUrl = `/uploads/${projectId}/${fileName}`
+      // 返回URL时进行编码
+      downloadUrl = `/uploads/${projectId}/${encodeURIComponent(fileName)}`
       downloadUrls = [downloadUrl]
     } else if (urls) {
       // Handle multiple URLs (second priority)
