@@ -18,7 +18,7 @@ export function Footer() {
           {/* 开发者信息 */}
           <div className="flex items-center gap-4 text-sm">
             <a 
-              href="https://github.com/yourusername/hot-update-manager" 
+              href="https://github.com/xiaozhang959/hotUpdateManage" 
               target="_blank" 
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-gray-600 hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-400 transition-colors"
@@ -27,7 +27,7 @@ export function Footer() {
               GitHub
             </a>
             <a 
-              href="mailto:support@example.com"
+              href="mailto:98study@duck.com"
               className="flex items-center gap-2 text-gray-600 hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-400 transition-colors"
             >
               <Mail className="h-4 w-4" />

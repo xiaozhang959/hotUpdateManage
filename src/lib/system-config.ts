@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { configCache } from '@/lib/cache/config-cache'
 
 export interface SystemConfigItem {
   key: string
@@ -168,32 +169,9 @@ export const DEFAULT_CONFIGS: SystemConfigItem[] = [
   }
 ]
 
-// 获取配置值
+// 获取配置值（使用缓存优化）
 export async function getConfig(key: string): Promise<string | number | boolean | null> {
-  try {
-    const config = await prisma.systemConfig.findUnique({
-      where: { key }
-    })
-    
-    if (!config) {
-      // 如果数据库中没有，返回默认值
-      const defaultConfig = DEFAULT_CONFIGS.find(c => c.key === key)
-      return defaultConfig?.value ?? null
-    }
-    
-    // 根据类型转换值
-    switch (config.type) {
-      case 'boolean':
-        return config.value === 'true'
-      case 'number':
-        return parseInt(config.value, 10)
-      default:
-        return config.value
-    }
-  } catch (error) {
-    console.error(`获取配置失败 [${key}]:`, error)
-    return null
-  }
+  return configCache.getConfig(key)
 }
 
 // 批量获取配置
@@ -256,6 +234,9 @@ export async function setConfig(key: string, value: string | number | boolean): 
         description: defaultConfig.description
       }
     })
+    
+    // 清除缓存
+    await configCache.invalidateConfig(key)
     
     return true
   } catch (error) {

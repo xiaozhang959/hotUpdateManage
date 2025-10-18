@@ -47,9 +47,15 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' }
     })
 
+    // 为每个版本添加时间戳
+    const versionsWithTimestamp = versions.map(v => ({
+      ...v,
+      timestamp: new Date(v.createdAt).getTime()
+    }))
+
     return NextResponse.json({
       success: true,
-      data: versions
+      data: versionsWithTimestamp
     })
   } catch (error) {
     console.error('Failed to fetch versions:', error)
@@ -205,7 +211,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: newVersion,
+      data: {
+        ...newVersion,
+        timestamp: new Date(newVersion.createdAt).getTime() // 添加时间戳
+      },
       message: 'Version created successfully'
     })
   } catch (error) {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { DEFAULT_CONFIGS, getConfigs, setConfig } from '@/lib/system-config'
+import { configCache } from '@/lib/cache/config-cache'
 
 // 获取所有系统配置
 export async function GET(req: Request) {
@@ -107,6 +108,7 @@ export async function POST(req: Request) {
     
     const results = []
     const errors = []
+    const updatedKeys: string[] = [] // 记录更新的配置键
     
     // 批量更新配置
     for (const config of configs) {
@@ -152,11 +154,17 @@ export async function POST(req: Request) {
           }
         })
         
+        updatedKeys.push(key) // 记录成功更新的键
         results.push({ key, success: true })
       } catch (error: any) {
         errors.push(`更新 ${key} 失败: ${error.message}`)
         results.push({ key, success: false, error: error.message })
       }
+    }
+    
+    // 清除更新过的配置缓存
+    if (updatedKeys.length > 0) {
+      await configCache.invalidateConfigs(updatedKeys)
     }
     
     return NextResponse.json({
@@ -201,6 +209,9 @@ export async function DELETE(req: Request) {
         // 忽略不存在的配置
       })
       
+      // 清除缓存
+      await configCache.invalidateConfig(key)
+      
       return NextResponse.json({
         message: `配置 ${key} 已重置为默认值`
       })
@@ -211,6 +222,9 @@ export async function DELETE(req: Request) {
       await prisma.systemConfig.deleteMany({
         where: { category }
       })
+      
+      // 清除该类别的所有缓存
+      await configCache.invalidateCategory(category)
       
       return NextResponse.json({
         message: `类别 ${category} 的所有配置已重置为默认值`

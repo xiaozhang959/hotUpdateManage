@@ -38,7 +38,13 @@ export async function GET(
       }
     })
 
-    return NextResponse.json(versions)
+    // 为每个版本添加时间戳字段
+    const versionsWithTimestamp = versions.map(v => ({
+      ...v,
+      timestamp: new Date(v.createdAt).getTime()
+    }))
+
+    return NextResponse.json(versionsWithTimestamp)
   } catch (error) {
     console.error('获取版本列表失败:', error)
     return NextResponse.json(
@@ -122,7 +128,7 @@ export async function POST(
           downloadUrl: primaryUrl, // 主链接，用于向后兼容
           downloadUrls: JSON.stringify(urls), // 存储所有链接
           md5: md5Hash,
-          changelog: changelog || '未提供更新日志',
+          changelog: changelog || '',
           forceUpdate: forceUpdate || false,
           isCurrent: true
         }
@@ -143,7 +149,11 @@ export async function POST(
     // 预热缓存（可选）
     await versionCache.warmupCache(id, newVersion)
 
-    return NextResponse.json(newVersion)
+    // 返回带时间戳的版本信息
+    return NextResponse.json({
+      ...newVersion,
+      timestamp: new Date(newVersion.createdAt).getTime()
+    })
   } catch (error) {
     console.error('创建版本失败:', error)
     return NextResponse.json(

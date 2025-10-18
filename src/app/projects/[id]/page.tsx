@@ -264,6 +264,43 @@ export default function ProjectVersionsPage() {
     }
   }
 
+  // 智能生成下一个版本号
+  const generateNextVersion = (): string => {
+    if (!project || !project.versions || project.versions.length === 0) {
+      return '1.0.0' // 如果没有版本，返回初始版本
+    }
+
+    // 找到最新的版本（按创建时间排序）
+    const latestVersion = project.versions.reduce((latest, current) => {
+      return new Date(current.createdAt) > new Date(latest.createdAt) ? current : latest
+    })
+
+    const versionStr = latestVersion.version
+    
+    // 处理语义化版本号 (如 1.0.1, 2.3.4)
+    const parts = versionStr.split('.')
+    
+    if (parts.length === 3) {
+      // 标准三段式版本号 major.minor.patch
+      const patch = parseInt(parts[2]) || 0
+      return `${parts[0]}.${parts[1]}.${patch + 1}`
+    } else if (parts.length === 2) {
+      // 两段式版本号 major.minor
+      const minor = parseInt(parts[1]) || 0
+      return `${parts[0]}.${minor + 1}`
+    } else if (parts.length === 1) {
+      // 单段版本号
+      const version = parseInt(parts[0]) || 0
+      return `${version + 1}`
+    } else {
+      // 更复杂的版本号，增加最后一段
+      const lastPart = parts[parts.length - 1]
+      const lastNum = parseInt(lastPart) || 0
+      parts[parts.length - 1] = `${lastNum + 1}`
+      return parts.join('.')
+    }
+  }
+
   const handleDeleteVersion = async () => {
     if (!deleteVersion) return
 
@@ -480,7 +517,14 @@ export default function ProjectVersionsPage() {
                 className="space-y-4"
               >
             <div className="flex justify-end mb-4">
-              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog open={dialogOpen} onOpenChange={(open) => {
+              setDialogOpen(open)
+              if (open) {
+                // 对话框打开时自动填充下一个版本号
+                const nextVersion = generateNextVersion()
+                setFormData(prev => ({ ...prev, version: nextVersion }))
+              }
+            }}>
             <DialogTrigger asChild>
               <Button className="bg-orange-600 hover:bg-orange-700">
                 <Plus className="mr-2 h-4 w-4" />
@@ -681,7 +725,11 @@ export default function ProjectVersionsPage() {
                     该项目还没有发布任何版本
                   </p>
                   <Button
-                    onClick={() => setDialogOpen(true)}
+                    onClick={() => {
+                      setDialogOpen(true)
+                      // 第一个版本时设置为1.0.0
+                      setFormData(prev => ({ ...prev, version: '1.0.0' }))
+                    }}
                     className="bg-orange-600 hover:bg-orange-700"
                   >
                     <Plus className="mr-2 h-4 w-4" />

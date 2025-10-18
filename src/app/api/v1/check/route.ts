@@ -1,10 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiKey, validateBearerToken } from '@/lib/auth-bearer'
 import { prisma } from '@/lib/prisma'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 // POST /api/v1/check - Check for updates (supports both API key and Bearer token)
 export async function POST(req: NextRequest) {
   try {
+    // 检查速率限制
+    const clientIp = getClientIp(req)
+    const rateLimitResult = await checkRateLimit(clientIp, 'api/v1/check')
+    
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { 
+          error: 'Too many requests',
+          message: `Rate limit exceeded: ${rateLimitResult.limit} requests per minute`,
+          retryAfter: rateLimitResult.reset.toISOString()
+        },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.reset.toISOString(),
+            'Retry-After': Math.ceil((rateLimitResult.reset.getTime() - Date.now()) / 1000).toString()
+          }
+        }
+      )
+    }
     let project: any = null
     let currentVersionToCheck: string | undefined
     
@@ -131,6 +154,28 @@ export async function POST(req: NextRequest) {
 // GET /api/v1/check/latest - Get latest version info (supports both API key and Bearer token)
 export async function GET(req: NextRequest) {
   try {
+    // 检查速率限制
+    const clientIp = getClientIp(req)
+    const rateLimitResult = await checkRateLimit(clientIp, 'api/v1/check')
+    
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { 
+          error: 'Too many requests',
+          message: `Rate limit exceeded: ${rateLimitResult.limit} requests per minute`,
+          retryAfter: rateLimitResult.reset.toISOString()
+        },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.reset.toISOString(),
+            'Retry-After': Math.ceil((rateLimitResult.reset.getTime() - Date.now()) / 1000).toString()
+          }
+        }
+      )
+    }
     let project: any = null
     
     // Try Bearer token authentication first

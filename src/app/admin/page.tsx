@@ -332,6 +332,43 @@ export default function AdminPage() {
     }
   }
 
+  // 智能生成下一个版本号
+  const generateNextVersion = (project: Project): string => {
+    if (!project.versions || project.versions.length === 0) {
+      return '1.0.0' // 如果没有版本，返回初始版本
+    }
+
+    // 找到最新的版本（按创建时间排序）
+    const latestVersion = project.versions.reduce((latest, current) => {
+      return new Date(current.createdAt) > new Date(latest.createdAt) ? current : latest
+    })
+
+    const versionStr = latestVersion.version
+    
+    // 处理语义化版本号 (如 1.0.1, 2.3.4)
+    const parts = versionStr.split('.')
+    
+    if (parts.length === 3) {
+      // 标准三段式版本号 major.minor.patch
+      const patch = parseInt(parts[2]) || 0
+      return `${parts[0]}.${parts[1]}.${patch + 1}`
+    } else if (parts.length === 2) {
+      // 两段式版本号 major.minor
+      const minor = parseInt(parts[1]) || 0
+      return `${parts[0]}.${minor + 1}`
+    } else if (parts.length === 1) {
+      // 单段版本号
+      const version = parseInt(parts[0]) || 0
+      return `${version + 1}`
+    } else {
+      // 更复杂的版本号，增加最后一段
+      const lastPart = parts[parts.length - 1]
+      const lastNum = parseInt(lastPart) || 0
+      parts[parts.length - 1] = `${lastNum + 1}`
+      return parts.join('.')
+    }
+  }
+
   const handleResetApiKey = async () => {
     if (!resetApiKeyProject) return
 
@@ -405,7 +442,7 @@ export default function AdminPage() {
         body: JSON.stringify({
           version: addVersionForm.version,
           downloadUrl: downloadUrl,
-          changelog: addVersionForm.changelog || '未提供更新日志',
+          changelog: addVersionForm.changelog || '',
           forceUpdate: addVersionForm.forceUpdate,
           md5: md5
         })
@@ -816,7 +853,12 @@ export default function AdminPage() {
                               查看详情
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => setManagingVersions(project)}
+                              onClick={() => {
+                                setManagingVersions(project)
+                                // 自动填充下一个版本号
+                                const nextVersion = generateNextVersion(project)
+                                setAddVersionForm(prev => ({ ...prev, version: nextVersion }))
+                              }}
                             >
                               <Package className="mr-2 h-4 w-4" />
                               管理版本
@@ -1234,7 +1276,11 @@ export default function AdminPage() {
       </AlertDialog>
 
       {/* 版本管理对话框 */}
-      <Dialog open={!!managingVersions} onOpenChange={() => setManagingVersions(null)}>
+      <Dialog open={!!managingVersions} onOpenChange={(open) => {
+        if (!open) {
+          setManagingVersions(null)
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center gap-2">

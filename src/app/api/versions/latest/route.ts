@@ -2,9 +2,32 @@ import { NextResponse, NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { versionCache } from '@/lib/cache/version-cache'
 import { validateBearerToken } from '@/lib/auth-bearer'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
   try {
+    // 检查速率限制
+    const clientIp = getClientIp(req)
+    const rateLimitResult = await checkRateLimit(clientIp, 'api/versions/latest')
+    
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { 
+          error: 'Too many requests',
+          message: `速率限制：每分钟最多 ${rateLimitResult.limit} 次请求`,
+          retryAfter: rateLimitResult.reset.toISOString()
+        },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.reset.toISOString(),
+            'Retry-After': Math.ceil((rateLimitResult.reset.getTime() - Date.now()) / 1000).toString()
+          }
+        }
+      )
+    }
     let project: any = null
     const body = await req.json().catch(() => ({}))
     
@@ -140,6 +163,7 @@ export async function POST(req: NextRequest) {
         forceUpdate: currentVersion.forceUpdate,
         changelog: currentVersion.changelog,
         createdAt: currentVersion.createdAt,
+        timestamp: new Date(currentVersion.createdAt).getTime(), // 添加时间戳
         isCurrent: currentVersion.isCurrent
       }
       
@@ -189,6 +213,7 @@ export async function POST(req: NextRequest) {
         forceUpdate: cachedVersion.forceUpdate,
         changelog: cachedVersion.changelog,
         createdAt: cachedVersion.createdAt,
+        timestamp: cachedVersion.timestamp || new Date(cachedVersion.createdAt).getTime(), // 添加时间戳字段
         isCurrent: cachedVersion.isCurrent
       }
     })

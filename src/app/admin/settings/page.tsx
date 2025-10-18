@@ -174,10 +174,16 @@ export default function SystemSettingsPage() {
     switch (type) {
       case 'number':
         if (value === '') {
-          validatedValue = 0
+          // 对于空值，不更新配置，让用户继续输入
+          return
         } else {
           const num = parseInt(value, 10)
           if (isNaN(num)) return
+          // 对于 api_rate_limit，确保最小值为 1
+          if (key === 'api_rate_limit' && num < 1) {
+            toast.error('API速率限制最小值为 1')
+            return
+          }
           validatedValue = num
         }
         break
@@ -352,6 +358,27 @@ export default function SystemSettingsPage() {
               </div>
               <p className="text-xs text-gray-500">
                 当前: {formatFileSize(currentValue as number)}
+              </p>
+            </div>
+          )
+        }
+        // 特殊处理 API 速率限制
+        if (config.key === 'api_rate_limit') {
+          return (
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2">
+                <Input
+                  type="number"
+                  value={currentValue}
+                  onChange={(e) => handleConfigChange(config.key, e.target.value, config.type)}
+                  className="w-32"
+                  min="1"
+                  placeholder="100"
+                />
+                <span className="text-sm text-gray-500">次/分钟</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                限制每个IP每分钟的请求次数
               </p>
             </div>
           )

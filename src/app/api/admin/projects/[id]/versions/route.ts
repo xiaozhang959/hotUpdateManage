@@ -63,7 +63,7 @@ export async function POST(
         downloadUrl: primaryUrl, // 主链接，用于向后兼容
         downloadUrls: JSON.stringify(urls), // 存储所有链接
         md5: finalMd5,
-        changelog: changelog || '未提供更新日志',
+        changelog: changelog || '',
         forceUpdate: forceUpdate || false,
         isCurrent: true,
         projectId: id
@@ -91,7 +91,10 @@ export async function POST(
 
     return NextResponse.json({
       message: '版本创建成功',
-      version: newVersion
+      version: {
+        ...newVersion,
+        timestamp: new Date(newVersion.createdAt).getTime() // 添加时间戳
+      }
     })
   } catch (error) {
     console.error('创建版本失败:', error)

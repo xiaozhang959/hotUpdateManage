@@ -11,6 +11,7 @@ interface CachedVersion {
   forceUpdate: boolean;
   changelog: string | null;
   createdAt: Date;
+  timestamp?: number; // 添加时间戳字段（Unix毫秒）
   isCurrent: boolean;
 }
 
