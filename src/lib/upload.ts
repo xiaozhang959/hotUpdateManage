@@ -9,9 +9,26 @@ export async function saveUploadedFile(file: File): Promise<{ filePath: string; 
   const buffer = Buffer.from(await file.arrayBuffer());
   const md5 = crypto.createHash('md5').update(buffer).digest('hex');
 
-  // Generate unique filename with timestamp and original extension
-  const ext = path.extname(file.name);
-  const filename = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
+  // 对文件名进行安全处理和URL编码
+  const safeFileName = file.name
+    .replace(/[<>:"|?*\\/]/g, '_')  // 移除文件系统不允许的字符
+    .replace(/\.{2,}/g, '_')         // 移除连续的点
+    .replace(/^\./g, '_');           // 移除开头的点
+  
+  // 分离文件名和扩展名
+  const ext = path.extname(safeFileName);
+  const nameWithoutExt = path.basename(safeFileName, ext);
+  
+  // 对文件名部分进行URL编码（保留扩展名不编码）
+  const encodedName = nameWithoutExt.split('').map(char => {
+    if (/^[a-zA-Z0-9._()-]$/.test(char)) {
+      return char;
+    }
+    return encodeURIComponent(char);
+  }).join('');
+  
+  // Generate unique filename with timestamp
+  const filename = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}-${encodedName}${ext}`;
   const filePath = path.join(UPLOAD_DIR, filename);
 
   // Save file to disk
@@ -44,7 +61,7 @@ export function validateFile(file: File): { valid: boolean; error?: string } {
     'application/x-apple-diskimage', // DMG
   ];
 
-  const allowedExtensions = ['.zip', '.rar', '.apk', '.exe', '.dmg', '.tar', '.gz', '.7z', '.jar'];
+  const allowedExtensions = ['.zip', '.rar', '.apk', '.exe', '.dmg', '.tar', '.gz', '.7z', '.jar', '.lrj'];
   const ext = path.extname(file.name).toLowerCase();
 
   if (!allowedExtensions.includes(ext)) {

@@ -51,6 +51,7 @@ export async function GET(
       '.png': 'image/png',
       '.gif': 'image/gif',
       '.pdf': 'application/pdf',
+      '.lrj': 'application/octet-stream', // 热更新插件文件
     }
     
     const contentType = mimeTypes[ext] || 'application/octet-stream'
