@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Footer } from '@/components/layout/footer'
+import { encodeDownloadUrl, encodeDownloadUrls } from '@/lib/url-encoder'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Button,
@@ -199,8 +200,9 @@ export default function ProjectVersionsPage() {
         md5 = uploadResult.data.md5
         setUploading(false)
       } else {
-        // URL方式，过滤有效链接
-        downloadUrls = formData.downloadUrls.filter(url => url.trim() !== '')
+        // URL方式，过滤有效链接并进行URL编码
+        const validUrls = formData.downloadUrls.filter(url => url.trim() !== '')
+        downloadUrls = encodeDownloadUrls(validUrls)
         downloadUrl = downloadUrls[0] // 向后兼容，第一个链接作为主链接
       }
 

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Footer } from '@/components/layout/footer'
 import { EmailVerificationBanner } from '@/components/email-verification-banner'
+import { encodeDownloadUrl, encodeDownloadUrls } from '@/lib/url-encoder'
 import {
   Button,
   Card,
@@ -296,8 +297,9 @@ export default function ProjectsPage() {
         md5 = uploadResult.data.md5
         setUploading(false)
       } else {
-        // URL方式，过滤有效链接
-        downloadUrls = uploadForm.downloadUrls.filter(url => url.trim() !== '')
+        // URL方式，过滤有效链接并进行URL编码
+        const validUrls = uploadForm.downloadUrls.filter(url => url.trim() !== '')
+        downloadUrls = encodeDownloadUrls(validUrls)
         downloadUrl = downloadUrls[0] // 向后兼容，第一个链接作为主链接
       }
 

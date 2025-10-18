@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import path from 'path'
 import fs from 'fs/promises'
 import crypto from 'crypto'
+import { encodeDownloadUrl, encodeDownloadUrls } from '@/lib/url-encoder'
 
 // GET /api/v1/versions - Get versions for a project
 export async function GET(req: NextRequest) {
@@ -139,11 +140,29 @@ export async function POST(req: NextRequest) {
       // Calculate MD5
       md5 = crypto.createHash('md5').update(buffer).digest('hex')
 
-      // Save file
+      // Save file with URL-encoded filename
       const uploadDir = path.join(process.cwd(), 'uploads', projectId)
       await fs.mkdir(uploadDir, { recursive: true })
       
-      const fileName = `${version}_${Date.now()}_${file.name}`
+      // 对文件名进行安全处理和URL编码
+      const safeFileName = file.name
+        .replace(/[<>:"|?*\\/]/g, '_')  // 移除文件系统不允许的字符
+        .replace(/\.{2,}/g, '_')         // 移除连续的点
+        .replace(/^\./g, '_');           // 移除开头的点
+      
+      // 分离文件名和扩展名
+      const ext = path.extname(safeFileName);
+      const nameWithoutExt = path.basename(safeFileName, ext);
+      
+      // 对文件名部分进行URL编码
+      const encodedName = nameWithoutExt.split('').map(char => {
+        if (/^[a-zA-Z0-9._()-]$/.test(char)) {
+          return char;
+        }
+        return encodeURIComponent(char);
+      }).join('');
+      
+      const fileName = `${version}_${Date.now()}_${encodedName}${ext}`
       const filePath = path.join(uploadDir, fileName)
       await fs.writeFile(filePath, buffer)
 
@@ -152,10 +171,12 @@ export async function POST(req: NextRequest) {
     } else if (urls) {
       // Handle multiple URLs (second priority)
       try {
-        downloadUrls = JSON.parse(urls)
-        if (!Array.isArray(downloadUrls) || downloadUrls.length === 0) {
+        const parsedUrls = JSON.parse(urls)
+        if (!Array.isArray(parsedUrls) || parsedUrls.length === 0) {
           throw new Error('Invalid URLs format')
         }
+        // 对所有URL进行编码
+        downloadUrls = encodeDownloadUrls(parsedUrls)
         downloadUrl = downloadUrls[0]
         // Generate random MD5 for URL-based versions
         const randomString = `${projectId}-${version}-${Date.now()}-${Math.random()}`
@@ -168,8 +189,9 @@ export async function POST(req: NextRequest) {
       }
     } else if (url) {
       // Handle single URL (lowest priority)
-      downloadUrl = url
-      downloadUrls = [url]
+      // 对URL进行编码
+      downloadUrl = encodeDownloadUrl(url)
+      downloadUrls = [downloadUrl]
       // Generate random MD5 for URL-based versions
       const randomString = `${projectId}-${version}-${Date.now()}-${Math.random()}`
       md5 = crypto.createHash('md5').update(randomString).digest('hex')
