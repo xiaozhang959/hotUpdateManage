@@ -56,7 +56,8 @@ import {
   Loader2,
   Download,
   ExternalLink,
-  FileText
+  FileText,
+  Upload
 } from 'lucide-react'
 
 interface Version {
@@ -68,6 +69,7 @@ interface Version {
   changelog: string
   isCurrent: boolean
   createdAt: string
+  updatedAt?: string
 }
 
 interface Project {
@@ -116,6 +118,15 @@ export function ProjectDetailDialog({
     forceUpdate: false
   })
   const [showVersionForm, setShowVersionForm] = useState(false)
+  const [editingVersion, setEditingVersion] = useState<Version | null>(null)
+  const [editVersionForm, setEditVersionForm] = useState({
+    version: '',
+    downloadUrl: '',
+    changelog: '',
+    forceUpdate: false,
+    isCurrent: false
+  })
+  const [updatingVersion, setUpdatingVersion] = useState(false)
 
   if (!project) return null
 
@@ -224,6 +235,58 @@ export function ProjectDetailDialog({
       toast.error('添加版本失败')
     } finally {
       setAddingVersion(false)
+    }
+  }
+
+  const handleEditVersion = (version: Version) => {
+    setEditingVersion(version)
+    setEditVersionForm({
+      version: version.version,
+      downloadUrl: version.downloadUrl,
+      changelog: version.changelog,
+      forceUpdate: version.forceUpdate,
+      isCurrent: version.isCurrent
+    })
+  }
+
+  // 检查是否为本地上传的文件链接
+  const isLocalUploadUrl = (url: string): boolean => {
+    if (!url) return false
+    // 检查是否包含 /uploads/ 路径
+    return url.includes('/uploads/') || 
+           (typeof window !== 'undefined' && url.startsWith(window.location.origin) && url.includes('/uploads/'))
+  }
+
+  const handleUpdateVersion = async () => {
+    if (!editingVersion) return
+    if (!editVersionForm.version || !editVersionForm.downloadUrl || !editVersionForm.changelog) {
+      toast.error('请填写所有必填字段')
+      return
+    }
+
+    setUpdatingVersion(true)
+    try {
+      const response = await fetch(
+        `/api/admin/projects/${project.id}/versions/${editingVersion.id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(editVersionForm)
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || '更新版本失败')
+      }
+
+      toast.success('版本已更新')
+      setEditingVersion(null)
+      onUpdate()
+    } catch (error: any) {
+      toast.error(error.message || '更新版本失败')
+    } finally {
+      setUpdatingVersion(false)
     }
   }
 
@@ -440,6 +503,14 @@ export function ProjectDetailDialog({
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleEditVersion(version)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
                                   className="h-8 w-8 text-red-600 hover:text-red-700"
                                   onClick={() => handleDeleteVersion(version.id)}
                                   disabled={deletingVersion === version.id}
@@ -591,6 +662,142 @@ export function ProjectDetailDialog({
                 </>
               ) : (
                 '添加版本'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 编辑版本对话框 */}
+      <Dialog open={!!editingVersion} onOpenChange={(open) => !open && setEditingVersion(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>编辑版本详情</DialogTitle>
+            <DialogDescription>
+              修改版本 {editingVersion?.version} 的信息
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-version">版本号 *</Label>
+              <Input
+                id="edit-version"
+                placeholder="1.0.0"
+                value={editVersionForm.version}
+                onChange={(e) => setEditVersionForm({ ...editVersionForm, version: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-downloadUrl">下载链接 *</Label>
+              {editingVersion && isLocalUploadUrl(editingVersion.downloadUrl) && (
+                <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-3 w-3 text-amber-600 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-amber-800">
+                        此版本包含上传的文件
+                      </p>
+                      <p className="text-xs text-amber-600 mt-0.5">
+                        文件是通过上传方式创建的。如需更换文件，建议删除此版本并重新创建。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <Input
+                id="edit-downloadUrl"
+                placeholder="https://example.com/app-v1.0.0.apk"
+                value={editVersionForm.downloadUrl}
+                onChange={(e) => {
+                  // 如果是本地文件链接，显示警告
+                  if (editingVersion && isLocalUploadUrl(editingVersion.downloadUrl) && e.target.value !== editingVersion.downloadUrl) {
+                    if (!window.confirm(
+                      '警告：您正在修改一个上传文件的链接。\n\n' +
+                      '这可能会导致：\n' +
+                      '1. 原上传文件变成孤儿文件（占用存储但无法访问）\n' +
+                      '2. 新链接可能无效\n\n' +
+                      '建议：如需更换文件，请删除此版本并重新创建。\n\n' +
+                      '确定要继续修改吗？'
+                    )) {
+                      return
+                    }
+                  }
+                  setEditVersionForm({ ...editVersionForm, downloadUrl: e.target.value })
+                }}
+                disabled={editingVersion !== null && isLocalUploadUrl(editingVersion.downloadUrl)}
+                className={editingVersion !== null && isLocalUploadUrl(editingVersion.downloadUrl) ? 'bg-gray-50' : ''}
+              />
+              {editingVersion && isLocalUploadUrl(editingVersion.downloadUrl) ? (
+                <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <Upload className="h-3 w-3" />
+                  上传的文件链接不建议修改
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  如果不修改链接，请保持原链接不变
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-changelog">更新日志 *</Label>
+              <textarea
+                id="edit-changelog"
+                className="w-full min-h-[100px] px-3 py-2 border rounded-md"
+                placeholder="1. 新增功能xxx&#10;2. 修复bug xxx"
+                value={editVersionForm.changelog}
+                onChange={(e) => setEditVersionForm({ ...editVersionForm, changelog: e.target.value })}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="edit-forceUpdate"
+                checked={editVersionForm.forceUpdate}
+                onCheckedChange={(checked) =>
+                  setEditVersionForm({ ...editVersionForm, forceUpdate: checked as boolean })
+                }
+              />
+              <Label htmlFor="edit-forceUpdate" className="cursor-pointer">
+                强制更新
+              </Label>
+            </div>
+            <Separator />
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="edit-isCurrent"
+                checked={editVersionForm.isCurrent}
+                onCheckedChange={(checked) =>
+                  setEditVersionForm({ ...editVersionForm, isCurrent: checked as boolean })
+                }
+              />
+              <Label htmlFor="edit-isCurrent" className="cursor-pointer">
+                设置为当前版本
+              </Label>
+            </div>
+            {editingVersion && (
+              <div className="text-xs text-gray-500 space-y-1">
+                <p>创建时间: {new Date(editingVersion.createdAt).toLocaleString()}</p>
+                {editingVersion.updatedAt && (
+                  <p>最后更新: {new Date(editingVersion.updatedAt).toLocaleString()}</p>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingVersion(null)}>
+              取消
+            </Button>
+            <Button
+              onClick={handleUpdateVersion}
+              disabled={updatingVersion}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {updatingVersion ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  更新中...
+                </>
+              ) : (
+                '保存修改'
               )}
             </Button>
           </DialogFooter>

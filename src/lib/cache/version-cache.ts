@@ -11,6 +11,7 @@ interface CachedVersion {
   forceUpdate: boolean;
   changelog: string | null;
   createdAt: Date;
+  updatedAt?: Date; // 更新时间
   timestamp?: number; // 添加时间戳字段（Unix毫秒）
   isCurrent: boolean;
 }
@@ -210,6 +211,7 @@ class VersionCacheManager {
       forceUpdate: version.forceUpdate,
       changelog: version.changelog,
       createdAt: version.createdAt,
+      updatedAt: version.updatedAt,
       isCurrent: version.isCurrent
     };
     

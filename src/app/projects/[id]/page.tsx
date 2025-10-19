@@ -111,6 +111,16 @@ export default function ProjectVersionsPage() {
     regenerateApiKey: false
   })
   const [editingProject, setEditingProject] = useState(false)
+  const [editingVersion, setEditingVersion] = useState<Version | null>(null)
+  const [editVersionForm, setEditVersionForm] = useState({
+    version: '',
+    downloadUrl: '',
+    downloadUrls: [''] as string[],
+    changelog: '',
+    forceUpdate: false,
+    isCurrent: false
+  })
+  const [updatingVersion, setUpdatingVersion] = useState(false)
 
   const [formData, setFormData] = useState({
     version: '',
@@ -338,6 +348,87 @@ export default function ProjectVersionsPage() {
     setCopiedCommand(true)
     toast.success('已复制到剪贴板')
     setTimeout(() => setCopiedCommand(false), 2000)
+  }
+
+  const handleEditVersion = (version: Version) => {
+    setEditingVersion(version)
+    // 解析downloadUrls
+    let urls = [version.downloadUrl]
+    if (version.downloadUrls) {
+      try {
+        const parsedUrls = JSON.parse(version.downloadUrls)
+        if (Array.isArray(parsedUrls) && parsedUrls.length > 0) {
+          urls = parsedUrls
+        }
+      } catch (e) {
+        console.error('解析downloadUrls失败:', e)
+      }
+    }
+    
+    setEditVersionForm({
+      version: version.version,
+      downloadUrl: version.downloadUrl,
+      downloadUrls: urls,
+      changelog: version.changelog,
+      forceUpdate: version.forceUpdate,
+      isCurrent: version.isCurrent
+    })
+  }
+
+  // 检查是否为本地上传的文件链接
+  const isLocalUploadUrl = (url: string): boolean => {
+    if (!url) return false
+    // 检查是否包含 /uploads/ 路径或是相对于当前域名的链接
+    return url.includes('/uploads/') || 
+           (typeof window !== 'undefined' && url.startsWith(window.location.origin) && url.includes('/uploads/'))
+  }
+
+  const handleUpdateVersion = async () => {
+    if (!editingVersion) return
+    if (!editVersionForm.version) {
+      toast.error('请填写版本号')
+      return
+    }
+
+    // 过滤空链接并检查是否至少有一个有效链接
+    const validUrls = editVersionForm.downloadUrls.filter(url => url.trim() !== '')
+    if (validUrls.length === 0) {
+      toast.error('请至少填写一个下载链接')
+      return
+    }
+
+    setUpdatingVersion(true)
+    try {
+      const encodedUrls = encodeDownloadUrls(validUrls)
+      const response = await fetch(
+        `/api/projects/${projectId}/versions/${editingVersion.id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            version: editVersionForm.version,
+            downloadUrl: encodedUrls[0],
+            downloadUrls: encodedUrls,
+            changelog: editVersionForm.changelog,
+            forceUpdate: editVersionForm.forceUpdate,
+            isCurrent: editVersionForm.isCurrent
+          })
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || '更新版本失败')
+      }
+
+      toast.success('版本已更新')
+      setEditingVersion(null)
+      fetchProject()
+    } catch (error: any) {
+      toast.error(error.message || '更新版本失败')
+    } finally {
+      setUpdatingVersion(false)
+    }
   }
 
   const handleEditProject = async () => {
@@ -952,6 +1043,15 @@ export default function ProjectVersionsPage() {
                             <Button
                               size="sm"
                               variant="ghost"
+                              onClick={() => handleEditVersion(version)}
+                              className="text-blue-600 hover:text-blue-700"
+                              title="编辑版本"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
                               onClick={() => setDeleteVersion(version)}
                               className="text-red-600 hover:text-red-700"
                             >
@@ -1145,6 +1245,198 @@ export default function ProjectVersionsPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* 编辑版本对话框 */}
+        <Dialog open={!!editingVersion} onOpenChange={(open) => !open && setEditingVersion(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>编辑版本详情</DialogTitle>
+              <DialogDescription>
+                修改版本 {editingVersion?.version} 的信息
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-version">版本号 *</Label>
+                <Input
+                  id="edit-version"
+                  placeholder="1.0.0"
+                  value={editVersionForm.version}
+                  onChange={(e) => setEditVersionForm({ ...editVersionForm, version: e.target.value })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>下载链接 *</Label>
+                  {!editVersionForm.downloadUrls.some(url => isLocalUploadUrl(url)) && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditVersionForm({
+                          ...editVersionForm,
+                          downloadUrls: [...editVersionForm.downloadUrls, '']
+                        })
+                      }}
+                      className="h-7 px-2"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      添加链接
+                    </Button>
+                  )}
+                </div>
+                
+                {/* 检查是否有本地上传的文件 */}
+                {editingVersion && editVersionForm.downloadUrls.some(url => isLocalUploadUrl(url)) && (
+                  <div className="mb-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-amber-800">
+                          此版本包含上传的文件
+                        </p>
+                        <p className="text-xs text-amber-600 mt-1">
+                          当前版本的文件是通过上传方式创建的。如需修改文件，建议删除此版本并重新创建，
+                          或仅修改版本号、更新日志等基本信息。
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {editVersionForm.downloadUrls.map((url, index) => {
+                  const isLocal = isLocalUploadUrl(url)
+                  return (
+                    <div key={index} className="flex gap-2">
+                      <div className="flex-1">
+                        <Input
+                          placeholder={`链接 ${index + 1}: https://example.com/app-v1.0.0.apk`}
+                          value={url}
+                          onChange={(e) => {
+                            // 如果是本地文件链接，显示警告
+                            if (isLocal && e.target.value !== url) {
+                              if (!window.confirm(
+                                '警告：您正在修改一个上传文件的链接。\n\n' +
+                                '这可能会导致：\n' +
+                                '1. 原上传文件无法访问\n' +
+                                '2. 新链接可能无效\n\n' +
+                                '建议：如需更换文件，请删除此版本并重新创建。\n\n' +
+                                '确定要继续修改吗？'
+                              )) {
+                                return
+                              }
+                            }
+                            const newUrls = [...editVersionForm.downloadUrls]
+                            newUrls[index] = e.target.value
+                            setEditVersionForm({ ...editVersionForm, downloadUrls: newUrls })
+                          }}
+                          disabled={isLocal}
+                          className={isLocal ? 'bg-gray-50' : ''}
+                        />
+                        {isLocal && (
+                          <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                            <Upload className="h-3 w-3" />
+                            上传的文件（不建议修改）
+                          </p>
+                        )}
+                      </div>
+                      {editVersionForm.downloadUrls.length > 1 && !isLocal && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            const newUrls = editVersionForm.downloadUrls.filter(
+                              (_, i) => i !== index
+                            )
+                            setEditVersionForm({ ...editVersionForm, downloadUrls: newUrls })
+                          }}
+                          className="h-10 w-10 p-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  )
+                })}
+                {!editVersionForm.downloadUrls.some(url => isLocalUploadUrl(url)) && (
+                  <p className="text-xs text-gray-500">
+                    如果不修改链接，请保持原链接不变
+                  </p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-changelog">更新日志</Label>
+                <textarea
+                  id="edit-changelog"
+                  className="w-full min-h-[100px] px-3 py-2 border rounded-md"
+                  placeholder="1. 新增功能xxx&#10;2. 修复bug xxx"
+                  value={editVersionForm.changelog}
+                  onChange={(e) => setEditVersionForm({ ...editVersionForm, changelog: e.target.value })}
+                />
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="edit-forceUpdate"
+                  checked={editVersionForm.forceUpdate}
+                  onCheckedChange={(checked) =>
+                    setEditVersionForm({ ...editVersionForm, forceUpdate: checked as boolean })
+                  }
+                />
+                <Label htmlFor="edit-forceUpdate" className="cursor-pointer">
+                  强制更新
+                </Label>
+              </div>
+              
+              <Separator />
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="edit-isCurrent"
+                  checked={editVersionForm.isCurrent}
+                  onCheckedChange={(checked) =>
+                    setEditVersionForm({ ...editVersionForm, isCurrent: checked as boolean })
+                  }
+                />
+                <Label htmlFor="edit-isCurrent" className="cursor-pointer">
+                  设置为当前版本
+                </Label>
+              </div>
+              
+              {editingVersion && (
+                <div className="text-xs text-gray-500 space-y-1">
+                  <p>创建时间: {new Date(editingVersion.createdAt).toLocaleString()}</p>
+                  {editingVersion.updatedAt && (
+                    <p>最后更新: {new Date(editingVersion.updatedAt).toLocaleString()}</p>
+                  )}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingVersion(null)}>
+                取消
+              </Button>
+              <Button
+                onClick={handleUpdateVersion}
+                disabled={updatingVersion}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                {updatingVersion ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    更新中...
+                  </>
+                ) : (
+                  '保存修改'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* 编辑项目对话框 */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
