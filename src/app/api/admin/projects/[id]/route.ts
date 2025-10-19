@@ -18,6 +18,7 @@ export async function PATCH(
 
     const { name, currentVersion } = await req.json()
 
+    // 注意：绝不要允许修改项目ID，因为文件存储路径依赖于它
     const updateData: any = {}
     if (name) updateData.name = name
     if (currentVersion !== undefined) updateData.currentVersion = currentVersion

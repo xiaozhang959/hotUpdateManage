@@ -56,7 +56,9 @@ import {
   Hash,
   Upload,
   AlertCircle,
-  X
+  X,
+  Edit,
+  RefreshCw
 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -88,6 +90,12 @@ export default function ProjectsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [showApiKeys, setShowApiKeys] = useState<{ [key: string]: boolean }>({})
   const [deleteProject, setDeleteProject] = useState<Project | null>(null)
+  const [editProject, setEditProject] = useState<Project | null>(null)
+  const [editProjectForm, setEditProjectForm] = useState({
+    name: '',
+    regenerateApiKey: false
+  })
+  const [editingProject, setEditingProject] = useState(false)
   const [requireEmailVerification, setRequireEmailVerification] = useState(false)
   const [uploadVersionDialog, setUploadVersionDialog] = useState<Project | null>(null)
   const [uploadingVersion, setUploadingVersion] = useState(false)
@@ -195,6 +203,50 @@ export default function ProjectsPage() {
       toast.error('删除项目失败')
     } finally {
       setDeleteProject(null)
+    }
+  }
+
+  const handleEditProject = async () => {
+    if (!editProject) return
+
+    setEditingProject(true)
+    try {
+      // 更新项目名称
+      const response = await fetch(`/api/projects/${editProject.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editProjectForm.name
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || '更新项目失败')
+      }
+
+      // 如果需要重新生成API密钥
+      if (editProjectForm.regenerateApiKey) {
+        const resetResponse = await fetch(`/api/projects/${editProject.id}/regenerate-key`, {
+          method: 'POST'
+        })
+
+        if (!resetResponse.ok) {
+          throw new Error('重置API密钥失败')
+        }
+        
+        toast.success('项目信息已更新，API密钥已重新生成')
+      } else {
+        toast.success('项目信息已更新')
+      }
+
+      fetchProjects()
+      setEditProject(null)
+      setEditProjectForm({ name: '', regenerateApiKey: false })
+    } catch (error: any) {
+      toast.error(error.message || '更新项目失败')
+    } finally {
+      setEditingProject(false)
     }
   }
 
@@ -486,6 +538,20 @@ export default function ProjectsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      onClick={() => {
+                        setEditProject(project)
+                        setEditProjectForm({
+                          name: project.name,
+                          regenerateApiKey: false
+                        })
+                      }}
+                      className="text-blue-600 hover:text-blue-700"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => setDeleteProject(project)}
                       className="text-red-600 hover:text-red-700"
                     >
@@ -559,6 +625,99 @@ export default function ProjectsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 编辑项目对话框 */}
+      <Dialog open={!!editProject} onOpenChange={() => setEditProject(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>编辑项目</DialogTitle>
+            <DialogDescription>
+              修改项目信息和管理API密钥
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-project-name">项目名称</Label>
+              <Input
+                id="edit-project-name"
+                value={editProjectForm.name}
+                onChange={(e) => setEditProjectForm({ ...editProjectForm, name: e.target.value })}
+                disabled={editingProject}
+              />
+            </div>
+            
+            {/* API密钥管理 */}
+            <Separator />
+            <div className="space-y-3">
+              <Label>API密钥管理</Label>
+              <Card className="bg-gray-50 dark:bg-gray-900">
+                <CardContent className="pt-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm">
+                        <p className="font-medium">当前API密钥</p>
+                        <code className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded mt-1 block">
+                          {editProject?.apiKey.substring(0, 12)}...
+                        </code>
+                      </div>
+                      <Key className="h-4 w-4 text-gray-400" />
+                    </div>
+                    
+                    <div className="flex items-center space-x-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md">
+                      <Checkbox
+                        id="regenerate-api-key"
+                        checked={editProjectForm.regenerateApiKey}
+                        onCheckedChange={(checked) => 
+                          setEditProjectForm({ ...editProjectForm, regenerateApiKey: checked as boolean })
+                        }
+                        disabled={editingProject}
+                      />
+                      <div className="flex-1">
+                        <Label 
+                          htmlFor="regenerate-api-key" 
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          重新生成API密钥
+                        </Label>
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                          <AlertCircle className="inline h-3 w-3 mr-1" />
+                          警告：重新生成将使旧密钥立即失效
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditProject(null)
+                setEditProjectForm({ name: '', regenerateApiKey: false })
+              }}
+              disabled={editingProject}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleEditProject}
+              disabled={editingProject || !editProjectForm.name.trim()}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {editingProject ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  保存中...
+                </>
+              ) : (
+                editProjectForm.regenerateApiKey ? '保存并重新生成密钥' : '保存'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 上传版本对话框 */}
       <Dialog open={!!uploadVersionDialog} onOpenChange={() => setUploadVersionDialog(null)}>

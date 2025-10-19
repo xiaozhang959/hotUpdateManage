@@ -59,6 +59,8 @@ export async function PATCH(
 
     const { name } = await req.json()
 
+    // 注意：绝不要允许修改项目ID，因为文件存储路径依赖于它
+    // 只允许修改项目名称等安全字段
     const project = await prisma.project.findFirst({
       where: {
         id: id,
