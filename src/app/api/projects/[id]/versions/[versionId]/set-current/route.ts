@@ -49,10 +49,15 @@ export async function POST(
         data: { isCurrent: false }
       })
 
-      // 设置选中版本为当前版本
+      // 设置选中版本为当前版本，并更新时间戳
+      // 重新选择其它版本设为当前版本时需要修改updatedAt时间戳
+      // 否则会导致基于时间戳检测的热更新失败
       await tx.version.update({
         where: { id: versionId },
-        data: { isCurrent: true }
+        data: { 
+          isCurrent: true,
+          updatedAt: new Date() // 强制更新updatedAt时间戳
+        }
       })
 
       // 更新项目的当前版本

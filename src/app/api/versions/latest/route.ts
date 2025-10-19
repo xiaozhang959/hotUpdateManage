@@ -115,7 +115,8 @@ export async function POST(req: NextRequest) {
             forceUpdate: true,
             changelog: true,
             isCurrent: true,
-            createdAt: true
+            createdAt: true,
+            updatedAt: true
           }
         })
       }
@@ -136,7 +137,8 @@ export async function POST(req: NextRequest) {
             forceUpdate: true,
             changelog: true,
             isCurrent: true,
-            createdAt: true
+            createdAt: true,
+            updatedAt: true
           },
           orderBy: {
             createdAt: 'desc'
@@ -163,7 +165,8 @@ export async function POST(req: NextRequest) {
         forceUpdate: currentVersion.forceUpdate,
         changelog: currentVersion.changelog,
         createdAt: currentVersion.createdAt,
-        timestamp: new Date(currentVersion.createdAt).getTime(), // 添加时间戳
+        updatedAt: currentVersion.updatedAt,
+        timestamp: new Date(currentVersion.updatedAt).getTime(), // 基于updatedAt计算时间戳
         isCurrent: currentVersion.isCurrent
       }
       
@@ -213,7 +216,8 @@ export async function POST(req: NextRequest) {
         forceUpdate: cachedVersion.forceUpdate,
         changelog: cachedVersion.changelog,
         createdAt: cachedVersion.createdAt,
-        timestamp: cachedVersion.timestamp || new Date(cachedVersion.createdAt).getTime(), // 添加时间戳字段
+        updatedAt: cachedVersion.updatedAt,
+        timestamp: cachedVersion.timestamp || new Date(cachedVersion.updatedAt || cachedVersion.createdAt).getTime(), // 基于updatedAt计算时间戳
         isCurrent: cachedVersion.isCurrent
       }
     })
