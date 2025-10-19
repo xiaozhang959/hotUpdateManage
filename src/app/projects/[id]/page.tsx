@@ -352,7 +352,7 @@ export default function ProjectVersionsPage() {
 
   const handleEditVersion = (version: Version) => {
     setEditingVersion(version)
-    // 解析downloadUrls
+    // 解析downloadUrls用于显示
     let urls = [version.downloadUrl]
     if (version.downloadUrls) {
       try {
@@ -368,7 +368,7 @@ export default function ProjectVersionsPage() {
     setEditVersionForm({
       version: version.version,
       downloadUrl: version.downloadUrl,
-      downloadUrls: urls,
+      downloadUrls: urls, // 保留原有链接用于显示
       changelog: version.changelog,
       forceUpdate: version.forceUpdate,
       isCurrent: version.isCurrent
@@ -390,16 +390,8 @@ export default function ProjectVersionsPage() {
       return
     }
 
-    // 过滤空链接并检查是否至少有一个有效链接
-    const validUrls = editVersionForm.downloadUrls.filter(url => url.trim() !== '')
-    if (validUrls.length === 0) {
-      toast.error('请至少填写一个下载链接')
-      return
-    }
-
     setUpdatingVersion(true)
     try {
-      const encodedUrls = encodeDownloadUrls(validUrls)
       const response = await fetch(
         `/api/projects/${projectId}/versions/${editingVersion.id}`,
         {
@@ -407,8 +399,7 @@ export default function ProjectVersionsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             version: editVersionForm.version,
-            downloadUrl: encodedUrls[0],
-            downloadUrls: encodedUrls,
+            // 不再发送downloadUrl和downloadUrls，保持原有链接不变
             changelog: editVersionForm.changelog,
             forceUpdate: editVersionForm.forceUpdate,
             isCurrent: editVersionForm.isCurrent
@@ -1267,105 +1258,58 @@ export default function ProjectVersionsPage() {
               </div>
               
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>下载链接 *</Label>
-                  {!editVersionForm.downloadUrls.some(url => isLocalUploadUrl(url)) && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setEditVersionForm({
-                          ...editVersionForm,
-                          downloadUrls: [...editVersionForm.downloadUrls, '']
-                        })
-                      }}
-                      className="h-7 px-2"
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      添加链接
-                    </Button>
-                  )}
-                </div>
+                <Label>下载链接（不可修改）</Label>
                 
-                {/* 检查是否有本地上传的文件 */}
-                {editingVersion && editVersionForm.downloadUrls.some(url => isLocalUploadUrl(url)) && (
-                  <div className="mb-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-amber-800">
-                          此版本包含上传的文件
-                        </p>
-                        <p className="text-xs text-amber-600 mt-1">
-                          当前版本的文件是通过上传方式创建的。如需修改文件，建议删除此版本并重新创建，
-                          或仅修改版本号、更新日志等基本信息。
-                        </p>
-                      </div>
+                {/* 显示说明信息 */}
+                <div className="mb-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-blue-800">
+                        下载链接不支持修改。如需更改文件，请删除此版本并创建新版本。
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
                 
+                {/* 显示所有下载链接 */}
                 {editVersionForm.downloadUrls.map((url, index) => {
                   const isLocal = isLocalUploadUrl(url)
                   return (
-                    <div key={index} className="flex gap-2">
-                      <div className="flex-1">
-                        <Input
-                          placeholder={`链接 ${index + 1}: https://example.com/app-v1.0.0.apk`}
-                          value={url}
-                          onChange={(e) => {
-                            // 如果是本地文件链接，显示警告
-                            if (isLocal && e.target.value !== url) {
-                              if (!window.confirm(
-                                '警告：您正在修改一个上传文件的链接。\n\n' +
-                                '这可能会导致：\n' +
-                                '1. 原上传文件无法访问\n' +
-                                '2. 新链接可能无效\n\n' +
-                                '建议：如需更换文件，请删除此版本并重新创建。\n\n' +
-                                '确定要继续修改吗？'
-                              )) {
-                                return
-                              }
-                            }
-                            const newUrls = [...editVersionForm.downloadUrls]
-                            newUrls[index] = e.target.value
-                            setEditVersionForm({ ...editVersionForm, downloadUrls: newUrls })
-                          }}
-                          disabled={isLocal}
-                          className={isLocal ? 'bg-gray-50' : ''}
-                        />
+                    <div key={index} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-500">链接 {index + 1}:</span>
                         {isLocal && (
-                          <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                            <Upload className="h-3 w-3" />
-                            上传的文件（不建议修改）
-                          </p>
+                          <Badge variant="secondary" className="text-xs">
+                            <Upload className="h-3 w-3 mr-1" />
+                            上传文件
+                          </Badge>
                         )}
                       </div>
-                      {editVersionForm.downloadUrls.length > 1 && !isLocal && (
+                      <div className="flex gap-2">
+                        <Input
+                          value={url}
+                          readOnly
+                          disabled
+                          className="bg-gray-50 font-mono text-sm"
+                        />
                         <Button
                           type="button"
                           size="sm"
                           variant="ghost"
                           onClick={() => {
-                            const newUrls = editVersionForm.downloadUrls.filter(
-                              (_, i) => i !== index
-                            )
-                            setEditVersionForm({ ...editVersionForm, downloadUrls: newUrls })
+                            navigator.clipboard.writeText(url)
+                            toast.success('链接已复制')
                           }}
                           className="h-10 w-10 p-0"
+                          title="复制链接"
                         >
-                          <X className="h-4 w-4" />
+                          <Copy className="h-4 w-4" />
                         </Button>
-                      )}
+                      </div>
                     </div>
                   )
                 })}
-                {!editVersionForm.downloadUrls.some(url => isLocalUploadUrl(url)) && (
-                  <p className="text-xs text-gray-500">
-                    如果不修改链接，请保持原链接不变
-                  </p>
-                )}
               </div>
               
               <div className="space-y-2">

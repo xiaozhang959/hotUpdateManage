@@ -57,7 +57,19 @@ export async function PATCH(
       return NextResponse.json({ error: '未授权' }, { status: 401 })
     }
 
-    const { name } = await req.json()
+    // 安全地解析请求体
+    let body: any = {}
+    try {
+      const text = await req.text()
+      if (text) {
+        body = JSON.parse(text)
+      }
+    } catch (e) {
+      console.error('解析请求体失败:', e)
+      return NextResponse.json({ error: '无效的请求体' }, { status: 400 })
+    }
+
+    const { name } = body
 
     // 注意：绝不要允许修改项目ID，因为文件存储路径依赖于它
     // 只允许修改项目名称等安全字段
