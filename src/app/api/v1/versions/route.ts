@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import path from 'path'
 import fs from 'fs/promises'
 import crypto from 'crypto'
-import { encodeDownloadUrl, encodeDownloadUrls } from '@/lib/url-encoder'
+// Keep encoding strictly for local file uploads; do not encode user-provided links
 
 // GET /api/v1/versions - Get versions for a project
 export async function GET(req: NextRequest) {
@@ -164,8 +164,8 @@ export async function POST(req: NextRequest) {
         if (!Array.isArray(parsedUrls) || parsedUrls.length === 0) {
           throw new Error('Invalid URLs format')
         }
-        // 对所有URL进行编码
-        downloadUrls = encodeDownloadUrls(parsedUrls)
+        // Do NOT encode user-provided URLs; keep them exactly as submitted
+        downloadUrls = parsedUrls
         downloadUrl = downloadUrls[0]
         // Generate random MD5 for URL-based versions
         const randomString = `${projectId}-${version}-${Date.now()}-${Math.random()}`
@@ -178,8 +178,8 @@ export async function POST(req: NextRequest) {
       }
     } else if (url) {
       // Handle single URL (lowest priority)
-      // 对URL进行编码
-      downloadUrl = encodeDownloadUrl(url)
+      // Do NOT encode user-provided URL; keep it exactly as submitted
+      downloadUrl = url
       downloadUrls = [downloadUrl]
       // Generate random MD5 for URL-based versions
       const randomString = `${projectId}-${version}-${Date.now()}-${Math.random()}`

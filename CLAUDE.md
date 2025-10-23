@@ -1,9 +1,27 @@
-# CLAUDE.md
+# WARP.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to WARP (warp.dev) when working with code in this repository.
 
 ## 项目概述
-通用项目热更新管理系统，使用 Next.js + TypeScript + Tailwind CSS + Prisma + SQLite 构建。
+企业级应用热更新管理平台，支持多项目管理、版本控制、自动更新检测等功能。使用 Next.js 15 + TypeScript + Tailwind CSS + Prisma + SQLite 构建。
+
+## 架构概览
+
+### 技术架构
+- **前端：** Next.js 15 (App Router) + TypeScript + Tailwind CSS v4
+- **后端：** Next.js API Routes + NextAuth v5
+- **数据库：** Prisma ORM + SQLite/PostgreSQL/MySQL
+- **认证：** NextAuth v5 with JWT + 角色权限管理
+- **缓存：** 内存缓存 + Redis（可选）
+- **邮件：** Nodemailer + SMTP
+- **文件存储：** 本地文件系统 + CDN支持
+
+### 核心概念
+1. **项目（Project）**：每个项目有独立的API密钥和版本管理
+2. **版本（Version）**：支持多版本并存，可设置当前活跃版本
+3. **热更新：** 客户端通过API获取最新版本信息
+4. **角色管理：** ADMIN（管理员）和 USER（普通用户）
+5. **系统配置：** 可动态配置注册、上传、邮件等功能
 
 ## 核心功能
 
@@ -97,40 +115,139 @@ src/
 
 ## 开发命令
 
+### 基本开发流程
 ```bash
-# 启动开发服务器
+# 安装依赖
+npm install
+
+# 启动开发服务器（使用Turbopack）
 npm run dev
 
 # 构建项目
 npm run build
 
+# 构建用于Vercel部署
+npm run build:vercel
+
 # 启动生产服务器
 npm start
 
-# 数据库迁移
-npx prisma migrate dev
+# 代码检查
+npm run lint
+```
+
+### 数据库管理
+```bash
+# 自动配置数据库（根据DB_PROVIDER环境变量）
+npm run db:setup
+
+# 运行数据库迁移（开发环境）
+npm run db:migrate
+
+# 部署迁移（生产环境）
+npm run db:migrate:deploy
+
+# 推送模式变化到数据库
+npm run db:push
+
+# 打开数据库管理界面
+npm run db:studio
+
+# 填充测试数据
+npm run db:seed
 
 # 生成Prisma客户端
 npx prisma generate
 
-# 查看数据库
-npx prisma studio
-
 # 重置数据库
 npx prisma migrate reset
 ```
+
+### 测试和调试
+```bash
+# 性能测试（需要先修改test-performance.js中的API_KEY）
+node test-performance.js
+
+# 查看缓存统计
+curl http://localhost:3000/api/cache/stats
+
+# 数据库健康检查（管理员权限）
+curl http://localhost:3000/api/admin/db-health
+```
+
+## 环境配置
+
+### 必需环境变量
+创建 `.env.local` 文件（可从 `.env.example` 复制）：
+
+```env
+# 数据库配置
+DB_PROVIDER=sqlite              # sqlite | postgresql | mysql
+SQLITE_URL=file:./dev.db        # SQLite 文件路径
+
+# NextAuth 配置
+NEXTAUTH_SECRET="your-secret-key-here"  # 使用 openssl rand -base64 32 生成
+NEXTAUTH_URL="http://localhost:3000"
+
+# 缓存配置（可选）
+REDIS_URL=redis://localhost:6379
+VERSION_CACHE_TTL=60
+INIT_CACHE_TTL=300
+
+# 邮件配置（可选）
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+```
+
+### 默认管理员账号
+首次启动后，使用以下账号登录：
+- **用户名**: admin
+- **密码**: admin123
+
+⚠️ **请立即修改默认密码！**
 
 ## 技术栈
 
 - **框架**: Next.js 15 (App Router, Turbopack)
 - **语言**: TypeScript
 - **样式**: Tailwind CSS v4 + Shadcn/ui
-- **数据库**: SQLite + Prisma ORM
+- **数据库**: SQLite/PostgreSQL/MySQL + Prisma ORM
 - **认证**: NextAuth v5
 - **加密**: bcryptjs
 - **图标**: Lucide React
 - **通知**: Sonner
 - **邮件**: Nodemailer
+- **动画**: Framer Motion
+- **缓存**: NodeCache + Redis
+- **文件处理**: Formidable + fs-extra
+
+## 架构模式与最佳实践
+
+### 多层缓存架构
+系统实现了多层缓存机制：
+1. **版本API缓存**：`/api/versions/latest` 缓存60秒，响应时间 < 10ms
+2. **初始化状态缓存**：减少99%的初始化检查调用
+3. **轮询索引管理**：每100次请求批量更新一次数据库
+
+### 数据库优化
+- **索引优化**：针对高频查询添加复合索引，提升50-80%性能
+- **SQLite优化**：WAL模式 + 64MB缓存 + 内存临时存储
+- **查询优化**：解决N+1问题，使用`select`代替`include`
+- **慢查询监控**：自动监控和警告 > 100ms的查询
+
+### 文件安全管理
+- **上传安全**：文件类型白名单、大小限制、可执行文件处理
+- **文件管理**：级联删除，自动清理关联文件
+- **多种上传方式**：拖拽、点击、Ctrl+V粘贴上传
+- **存储结构**：`public/uploads/[projectId]/` 目录结构
+
+### 系统配置管理
+支持动态配置系统行为：
+- 注册开关、文件上传开关、SMTP邮件配置
+- 配置实时生效，支持重置为默认值
+- 分类管理：general/upload/auth/security/email
 
 ## 数据模型
 
@@ -278,6 +395,66 @@ npx prisma migrate reset
 - 成功: 绿色
 - 错误: 红色
 - 警告: 黄色
+
+## 重要API模式
+
+### 公开API设计
+核心热更新API采用双重认证：
+```typescript
+// Header认证（推荐）
+headers: { 'X-API-Key': 'your-project-api-key' }
+
+// Body认证
+body: { "apiKey": "your-project-api-key" }
+```
+
+### 高频API优化
+- `POST /api/versions/latest`：缓存60秒，减少90%数据库查询
+- `GET /api/init/check`：缓存5分钟，减少99%调用次数
+- 支持轮询索引管理，均衡负载
+
+### 文件上传流程
+1. **上传**: `POST /api/upload` - 返回url, md5, 大小
+2. **创建版本**: `POST /api/projects/[id]/versions` - 支持文件或URL
+3. **设置当前**: `POST /api/projects/[id]/versions/[versionId]/set-current`
+4. **缓存预热**: 自动预热新版本缓存
+
+## 常见问题与解决方案
+
+### 数据库问题
+```bash
+# 数据库锁定问题
+# 原因：长时间运行的事务
+npx prisma migrate reset  # 重置数据库
+
+# 慢查询问题
+# 检查数据库健康
+curl http://localhost:3000/api/admin/db-health
+```
+
+### 性能问题
+```bash
+# 检查缓存状态
+curl http://localhost:3000/api/cache/stats
+
+# 性能测试
+# 先修改 test-performance.js 中的 API_KEY
+node test-performance.js
+
+# 启动Redis（推荐）
+docker run -d --name redis -p 6379:6379 redis:alpine
+```
+
+### 邮件功能问题
+```bash
+# 测试SMTP配置（需要管理员登录）
+curl -X POST http://localhost:3000/api/admin/system/smtp-test \
+  -H "Content-Type: application/json" \
+  -d '{"testEmail": "test@example.com"}'
+```
+
+### 初始化问题
+如果系统初始化失败，访问 `/init` 页面手动创建管理员账号。
 
 ## 开发注意事项
 
