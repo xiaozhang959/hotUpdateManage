@@ -358,7 +358,7 @@ export default function ProjectsPage() {
           const cfgId = r.storageConfigId ?? null
           const found = availableStorages.find((s:any) => String(s.id ?? 'local') === String(cfgId ?? 'local'))
           const name = found?.name || (type === 'LOCAL' ? '本地存储(内置)' : (type || '链接'))
-          return { type, name }
+          return { type, name, configId: cfgId, objectKey: r.objectKey }
         })
         setUploading(false)
       } else {
@@ -369,7 +369,9 @@ export default function ProjectsPage() {
         downloadUrl = downloadUrls[0] // 向后兼容，第一个链接作为主链接
         var storageProviders = downloadUrls.map(u => ({
           type: (u.includes('/uploads/') ? 'LOCAL' : 'LINK'),
-          name: (u.includes('/uploads/') ? '本地存储(内置)' : '链接')
+          name: (u.includes('/uploads/') ? '本地存储(内置)' : '链接'),
+          configId: null,
+          objectKey: null
         }))
       }
 

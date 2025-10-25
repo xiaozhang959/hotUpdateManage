@@ -118,6 +118,7 @@ export async function POST(req: NextRequest) {
             storageProvider: true,
             objectKey: true,
             storageConfigId: true,
+            storageProviders: true,
             createdAt: true,
             updatedAt: true
           }
@@ -143,6 +144,7 @@ export async function POST(req: NextRequest) {
             storageProvider: true,
             objectKey: true,
             storageConfigId: true,
+            storageProviders: true,
             createdAt: true,
             updatedAt: true
           },
@@ -177,7 +179,8 @@ export async function POST(req: NextRequest) {
         isCurrent: currentVersion.isCurrent,
         _provider: currentVersion.storageProvider,
         _objectKey: currentVersion.objectKey,
-        _configId: currentVersion.storageConfigId
+        _configId: currentVersion.storageConfigId,
+        _providers: currentVersion.storageProviders || '[]'
       }
       
       // 存入缓存
@@ -217,9 +220,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 如果版本来自对象存储，则统一返回服务端代理/预签名下载地址
-    if ((cachedVersion as any)._provider && (cachedVersion as any)._objectKey && (cachedVersion as any).id) {
-      selectedUrl = `/api/versions/${(cachedVersion as any).id}/download`
+    // 针对对象存储：优先返回可稳定访问的下载入口（带轮询索引），避免直链 403/404
+    // 只有纯“LINK”类型时才返回直链
+    if ((cachedVersion as any).id && Array.isArray(cachedVersion.downloadUrls) && cachedVersion.downloadUrls.length > 0) {
+      const urls = cachedVersion.downloadUrls as string[]
+      const idx = urls.indexOf(selectedUrl)
+      const providersRaw = (cachedVersion as any)._providers || '[]'
+      let providers: any[] = []
+      try { providers = JSON.parse(providersRaw) } catch { providers = [] }
+      const type = (providers[idx]?.type || providers[idx] || '').toString().toUpperCase()
+      const isLink = type === 'LINK'
+      // 如果当前选中的链接不是 LINK（即需要签名/代理/本地流式）则返回 /download?i=idx
+      if (!isLink) {
+        const safeIdx = idx >= 0 ? idx : 0
+        selectedUrl = `/api/versions/${(cachedVersion as any).id}/download?i=${safeIdx}`
+      }
     }
 
     // 统一返回“绝对URL”，便于客户端直接使用（KISS）

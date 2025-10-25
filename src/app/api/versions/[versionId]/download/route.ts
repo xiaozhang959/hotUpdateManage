@@ -14,18 +14,24 @@ export async function GET(
     if (!version) {
       return new Response(JSON.stringify({ error: '版本不存在' }), { status: 404 })
     }
+    const url = new URL(req.url)
+    const iParam = url.searchParams.get('i')
+    const index = Math.max(0, Math.min(Number.isFinite(Number(iParam)) ? Number(iParam) : 0, Math.max(0, (safeParseArray(version.downloadUrls).length - 1))))
+    const providersArr = safeParseProviders(version.storageProviders)
+    const cur = providersArr[index]
 
-    // 如果是本地或无对象存储信息，则直接重定向到存储的主链接
-    if (!version.storageProvider || !version.objectKey) {
-      if (version.downloadUrl) {
-        return Response.redirect(version.downloadUrl, 302)
-      }
-      return new Response(JSON.stringify({ error: '该版本无可用下载链接' }), { status: 404 })
+    // 如果明确为 LINK 类型，直接302到对应直链
+    if (typeof cur === 'string' ? cur.toUpperCase() === 'LINK' : (cur?.type || '').toUpperCase() === 'LINK') {
+      const urls = safeParseArray(version.downloadUrls)
+      const target = urls[index] || version.downloadUrl
+      if (!target) return new Response(JSON.stringify({ error: '该版本无可用下载链接' }), { status: 404 })
+      return Response.redirect(target, 302)
     }
 
-    // 优先基于存储配置生成可直接访问的链接
-    const storageConfigId = version.storageConfigId
-    const provider = version.storageProvider
+    // 解析当前索引对应的 provider 信息
+    const provider = (typeof cur === 'string' ? cur : (cur?.type || version.storageProvider || '')).toUpperCase()
+    const storageConfigId = (typeof cur === 'object' && cur?.configId) ? cur.configId : version.storageConfigId
+    const objKey = (typeof cur === 'object' && cur?.objectKey) ? cur.objectKey : version.objectKey
 
     // S3/OSS: 生成预签名 URL 并重定向（有效期 5 分钟）
     if (provider === 'S3' || provider === 'OSS') {
@@ -45,9 +51,11 @@ export async function GET(
           endpoint: conf.endpoint,
           forcePathStyle: !!conf.forcePathStyle
         })
+        const key = objKey || deriveObjectKeyFromUrl(safeParseArray(version.downloadUrls)[index])
+        if (!key) return new Response(JSON.stringify({ error: '对象键缺失' }), { status: 400 })
         const url = await getSignedUrl(
           client,
-          new GetObjectCommand({ Bucket: conf.bucket, Key: version.objectKey }),
+          new GetObjectCommand({ Bucket: conf.bucket, Key: key }),
           { expiresIn: 300 }
         )
         return Response.redirect(url, 302)
@@ -63,7 +71,9 @@ export async function GET(
           endpoint: conf.endpoint,
           secure: conf.secure !== false
         })
-        const url = client.signatureUrl(version.objectKey, { expires: 300 })
+        const key = objKey || deriveObjectKeyFromUrl(safeParseArray(version.downloadUrls)[index])
+        if (!key) return new Response(JSON.stringify({ error: '对象键缺失' }), { status: 400 })
+        const url = client.signatureUrl(key, { expires: 300 })
         return Response.redirect(url, 302)
       }
     }
@@ -83,13 +93,15 @@ export async function GET(
         ? 'Basic ' + Buffer.from(`${conf.username}:${conf.password}`).toString('base64')
         : null
 
-      const remoteUrl = `${baseUrl}/${[rootPath, version.objectKey].filter(Boolean).join('/')}`
+      const key = objKey || deriveObjectKeyFromUrl(safeParseArray(version.downloadUrls)[index])
+      if (!key) return new Response(JSON.stringify({ error: '对象键缺失' }), { status: 400 })
+      const remoteUrl = `${baseUrl}/${[rootPath, key].filter(Boolean).join('/')}`
       const upstream = await fetch(remoteUrl, { headers: authHeader ? { Authorization: authHeader } : undefined })
       if (!upstream.ok || !upstream.body) {
         return new Response(JSON.stringify({ error: `远端下载失败: ${upstream.status}` }), { status: upstream.status })
       }
 
-      const fileNameEnc = (version.objectKey.split('/').pop() || 'file')
+      const fileNameEnc = (key.split('/').pop() || 'file')
       const fileName = safeDecodeURIComponent(fileNameEnc)
       const headers = new Headers()
       headers.set('Content-Type', upstream.headers.get('content-type') || 'application/octet-stream')
@@ -99,8 +111,10 @@ export async function GET(
     }
 
     // 本地存储：直接从本地uploads目录流式返回，避免额外跳转
-    if (provider === 'LOCAL' && version.objectKey) {
-      const safe = parseLocalObjectKey(version.objectKey)
+    if (provider === 'LOCAL') {
+      const key = objKey || deriveObjectKeyFromUrl(safeParseArray(version.downloadUrls)[index])
+      if (!key) return new Response(JSON.stringify({ error: '对象键缺失' }), { status: 400 })
+      const safe = parseLocalObjectKey(key)
       if (!safe) {
         return new Response(JSON.stringify({ error: '非法对象键' }), { status: 400 })
       }
@@ -142,6 +156,34 @@ function encodeRFC5987ValueChars(str: string) {
   return encodeURIComponent(str)
     .replace(/['()*]/g, c => '%' + c.charCodeAt(0).toString(16))
     .replace(/%(7C|60|5E)/g, (match, hex) => '%' + hex)
+}
+
+function safeParseArray(json: any): string[] {
+  try {
+    const arr = typeof json === 'string' ? JSON.parse(json) : json
+    return Array.isArray(arr) ? arr : []
+  } catch { return [] }
+}
+
+function safeParseProviders(json: any): any[] {
+  try {
+    const arr = typeof json === 'string' ? JSON.parse(json) : json
+    return Array.isArray(arr) ? arr : []
+  } catch { return [] }
+}
+
+function deriveObjectKeyFromUrl(u?: string): string | null {
+  if (!u) return null
+  try {
+    // 支持相对与绝对地址
+    const url = u.startsWith('http') ? new URL(u) : new URL(u, 'http://localhost')
+    const p = decodeURIComponent(url.pathname)
+    // /uploads/<projectId>/<file>
+    const m = p.match(/\/(?:api\/)?uploads\/([^/]+)\/(.+)$/)
+    if (m) return `${m[1]}/${m[2]}`
+    // 默认返回去掉前导斜杠的路径（用于 S3/OSS 兼容）
+    return p.replace(/^\//, '')
+  } catch { return null }
 }
 
 function parseLocalObjectKey(objectKey: string): { projectId: string; fileName: string } | null {
