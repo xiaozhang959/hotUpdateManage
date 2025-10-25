@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { getConfig } from '@/lib/system-config'
 import path from 'path'
 import { existsSync, statSync } from 'fs'
 import { createReadStream } from 'fs'
@@ -53,10 +54,12 @@ export async function GET(
         })
         const key = objKey || deriveObjectKeyFromUrl(safeParseArray(version.downloadUrls)[index])
         if (!key) return new Response(JSON.stringify({ error: '对象键缺失' }), { status: 400 })
+        const cfgExpire = Number(await getConfig('s3_presign_expire_seconds')) || 3600
+        const expiresIn = clamp(cfgExpire, 60, 86400)
         const url = await getSignedUrl(
           client,
           new GetObjectCommand({ Bucket: conf.bucket, Key: key }),
-          { expiresIn: 300 }
+          { expiresIn }
         )
         return Response.redirect(url, 302)
       }
@@ -73,7 +76,9 @@ export async function GET(
         })
         const key = objKey || deriveObjectKeyFromUrl(safeParseArray(version.downloadUrls)[index])
         if (!key) return new Response(JSON.stringify({ error: '对象键缺失' }), { status: 400 })
-        const url = client.signatureUrl(key, { expires: 300 })
+        const cfgExpire = Number(await getConfig('oss_presign_expire_seconds')) || 3600
+        const expires = clamp(cfgExpire, 60, 86400)
+        const url = client.signatureUrl(key, { expires })
         return Response.redirect(url, 302)
       }
     }
@@ -184,6 +189,11 @@ function deriveObjectKeyFromUrl(u?: string): string | null {
     // 默认返回去掉前导斜杠的路径（用于 S3/OSS 兼容）
     return p.replace(/^\//, '')
   } catch { return null }
+}
+
+function clamp(n: number, min: number, max: number) {
+  if (!Number.isFinite(n)) return min
+  return Math.max(min, Math.min(max, Math.floor(n)))
 }
 
 function parseLocalObjectKey(objectKey: string): { projectId: string; fileName: string } | null {

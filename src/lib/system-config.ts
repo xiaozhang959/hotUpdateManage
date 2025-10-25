@@ -36,6 +36,20 @@ export const DEFAULT_CONFIGS: SystemConfigItem[] = [
     description: '是否允许文件上传'
   },
   {
+    key: 's3_presign_expire_seconds',
+    value: 3600,
+    type: 'number',
+    category: 'upload',
+    description: 'S3 预签名有效期（秒），默认 3600（60 分钟）'
+  },
+  {
+    key: 'oss_presign_expire_seconds',
+    value: 3600,
+    type: 'number',
+    category: 'upload',
+    description: 'OSS 预签名有效期（秒），默认 3600（60 分钟）'
+  },
+  {
     key: 'require_md5_for_link_uploads',
     value: false,
     type: 'boolean',
