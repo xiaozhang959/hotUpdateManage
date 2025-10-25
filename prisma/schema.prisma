@@ -1,0 +1,130 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String          @id @default(cuid())
+  email              String          @unique
+  username           String          @unique
+  password           String
+  role               String          @default("USER")
+  emailVerified      Boolean         @default(false)
+  verificationToken  String?         @unique
+  verificationExpiry DateTime?
+  resetToken         String?         @unique
+  resetTokenExpiry   DateTime?
+  apiToken           String?         @unique // Bearer token for API authentication
+  apiTokenCreatedAt  DateTime? // Track when token was created
+  projects           Project[]
+  storageConfigs     StorageConfig[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+}
+
+model Project {
+  id             String       @id @default(cuid())
+  name           String
+  apiKey         String       @unique @default(uuid())
+  currentVersion String? // 当前活跃版本
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions       Version[]
+  apiRequests    ApiRequest[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Version {
+  id               String         @id @default(cuid())
+  projectId        String
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version          String
+  downloadUrl      String // 保持向后兼容，存储第一个链接
+  downloadUrls     String         @default("[]") // JSON数组存储多个链接
+  urlRotationIndex Int            @default(0) // 轮询索引，记录当前返回的链接位置
+  md5              String
+  md5Source        String         @default("manual") // local | etag | content-md5 | get-stream | manual | random
+  storageProvider  String?
+  objectKey        String?
+  storageConfigId  String?
+  storageConfig    StorageConfig? @relation(fields: [storageConfigId], references: [id], onDelete: SetNull)
+  storageProviders String         @default("[]")
+  forceUpdate      Boolean        @default(false)
+  changelog        String
+  isCurrent        Boolean        @default(false) // 是否为当前版本
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([projectId, version])
+}
+
+model SystemConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  type        String // 'boolean', 'number', 'string'
+  category    String // 'general', 'upload', 'auth', 'security'
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+}
+
+model ApiRequest {
+  id           String   @id @default(cuid())
+  projectId    String?
+  project      Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  endpoint     String // API端点路径
+  method       String // HTTP方法
+  statusCode   Int // HTTP状态码
+  responseTime Int // 响应时间（毫秒）
+  userAgent    String? // 用户代理
+  ipAddress    String? // IP地址
+  createdAt    DateTime @default(now())
+
+  @@index([projectId])
+  @@index([endpoint])
+  @@index([createdAt])
+}
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  toEmail   String
+  subject   String
+  type      String // 'verification', 'reset_password', 'notification'
+  status    String // 'sent', 'failed'
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// 存储配置：支持用户级与全局（userId 为 null）
+model StorageConfig {
+  id         String   @id @default(cuid())
+  name       String
+  provider   String // 'LOCAL' | 'S3' | 'OSS' | 'WEBDAV'
+  userId     String? // null 表示全局配置
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isDefault  Boolean  @default(false) // 每个作用域（用户/全局）建议仅一个默认
+  configJson String // 提供方参数（JSON字符串）
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Back relation to Version.storageConfig
+  versions Version[]
+
+  @@index([userId])
+  @@index([provider])
+}
