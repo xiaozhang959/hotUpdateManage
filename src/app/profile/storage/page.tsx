@@ -40,10 +40,12 @@ export default function ProfileStoragePage() {
           <div>
             <Label>publicPrefix</Label>
             <Input value={form.config?.publicPrefix||''} onChange={e=>setForm({...form, config:{...form.config, publicPrefix:e.target.value}})} placeholder="/uploads"/>
+            <p className="text-xs text-gray-500 mt-1">必须以 / 开头且不以 / 结尾。默认 /uploads。注意：next.config.ts 仅重写 /uploads → /api/uploads，如改前缀需同步修改 rewrite。</p>
           </div>
           <div>
             <Label>baseDir</Label>
             <Input value={form.config?.baseDir||''} onChange={e=>setForm({...form, config:{...form.config, baseDir:e.target.value}})} placeholder="uploads"/>
+            <p className="text-xs text-gray-500 mt-1">服务端本地目录（相对项目根）。默认 uploads。与 publicPrefix 对应。</p>
           </div>
         </div>
       )
@@ -52,22 +54,27 @@ export default function ProfileStoragePage() {
           <div>
             <Label>baseUrl</Label>
             <Input value={form.config?.baseUrl||''} onChange={e=>setForm({...form, config:{...form.config, baseUrl:e.target.value}})} placeholder="https://dav.example.com/remote.php/webdav"/>
+            <p className="text-xs text-gray-500 mt-1">必填，WebDAV 根地址，结尾不要带 /。例如：Nextcloud → https://cloud.example.com/remote.php/webdav；通用 → https://dav.example.com/webdav。</p>
           </div>
           <div>
             <Label>publicBaseUrl</Label>
             <Input value={form.config?.publicBaseUrl||''} onChange={e=>setForm({...form, config:{...form.config, publicBaseUrl:e.target.value}})} placeholder="可选，默认等于 baseUrl"/>
+            <p className="text-xs text-gray-500 mt-1">可选，对外可访问域名（无认证）。留空则与 baseUrl 相同。非公开时可留空，下载将走服务端代理。</p>
           </div>
           <div>
             <Label>username</Label>
             <Input value={form.config?.username||''} onChange={e=>setForm({...form, config:{...form.config, username:e.target.value}})} />
+            <p className="text-xs text-gray-500 mt-1">如服务端需认证，请填写用户名。</p>
           </div>
           <div>
             <Label>password</Label>
             <Input type="password" value={form.config?.password||''} onChange={e=>setForm({...form, config:{...form.config, password:e.target.value}})} />
+            <p className="text-xs text-gray-500 mt-1">如服务端需认证，请填写密码。</p>
           </div>
           <div>
             <Label>rootPath</Label>
             <Input value={form.config?.rootPath||''} onChange={e=>setForm({...form, config:{...form.config, rootPath:e.target.value}})} placeholder="/hotupdates"/>
+            <p className="text-xs text-gray-500 mt-1">可选，仓库内子目录。不要以 / 开头或结尾，示例：hotupdates。最终路径：baseUrl/rootPath/{'{projectId}'}/{'{file}'}。</p>
           </div>
         </div>
       )
@@ -76,6 +83,7 @@ export default function ProfileStoragePage() {
           <div>
             <Label>region</Label>
             <Input value={form.config?.region||''} onChange={e=>setForm({...form, config:{...form.config, region:e.target.value}})} placeholder="us-east-1"/>
+            <p className="text-xs text-gray-500 mt-1">AWS 写真实区域；S3 兼容服务（如 MinIO/Bitiful/R2）一般填 us-east-1 或 provider 要求的值。</p>
           </div>
           <div>
             <Label>bucket</Label>
@@ -92,10 +100,17 @@ export default function ProfileStoragePage() {
           <div>
             <Label>endpoint</Label>
             <Input value={form.config?.endpoint||''} onChange={e=>setForm({...form, config:{...form.config, endpoint:e.target.value}})} placeholder="可选"/>
+            <p className="text-xs text-gray-500 mt-1">S3 兼容服务必填，例如 MinIO/Bitiful：如 https://s3.bitiful.net；AWS 官方可留空。</p>
           </div>
           <div>
             <Label>publicBaseUrl</Label>
             <Input value={form.config?.publicBaseUrl||''} onChange={e=>setForm({...form, config:{...form.config, publicBaseUrl:e.target.value}})} placeholder="可选"/>
+            <p className="text-xs text-gray-500 mt-1">可选，桶对外域名（公开或 CDN），形如 https://{'{bucket}'} . s3 . {'{region}'} . amazonaws . com / 或兼容服务域名。若桶私有可留空，下载走预签名。</p>
+          </div>
+          <div className="col-span-2 flex items-center gap-2">
+            <input id="forcePathStyle" type="checkbox" checked={!!form.config?.forcePathStyle} onChange={e=>setForm({...form, config:{...form.config, forcePathStyle:e.target.checked}})} />
+            <Label htmlFor="forcePathStyle">forcePathStyle（路径式地址）</Label>
+            <p className="text-xs text-gray-500">MinIO/部分兼容服务需要勾选。勾选后地址形如 https://endpoint/bucket/key。</p>
           </div>
         </div>
       )
@@ -120,10 +135,12 @@ export default function ProfileStoragePage() {
           <div>
             <Label>endpoint</Label>
             <Input value={form.config?.endpoint||''} onChange={e=>setForm({...form, config:{...form.config, endpoint:e.target.value}})} placeholder="可选"/>
+            <p className="text-xs text-gray-500 mt-1">可选，内网或自定义域名。留空则使用官方域名。</p>
           </div>
           <div>
             <Label>publicBaseUrl</Label>
             <Input value={form.config?.publicBaseUrl||''} onChange={e=>setForm({...form, config:{...form.config, publicBaseUrl:e.target.value}})} placeholder="可选"/>
+            <p className="text-xs text-gray-500 mt-1">可选，公开访问域名/CDN 域名。桶私有时可留空，下载走预签名。</p>
           </div>
         </div>
       )
@@ -238,4 +255,3 @@ export default function ProfileStoragePage() {
     </div>
   )
 }
-
