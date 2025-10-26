@@ -143,6 +143,19 @@ export default function ProjectVersionsPage() {
   })
   const [uploading, setUploading] = useState(false)
   const [resolvingMd5, setResolvingMd5] = useState(false)
+  // 记住用户上次使用的上传方式（本地存储）
+  const LAST_UPLOAD_METHOD_KEY = 'hum:lastUploadMethod'
+  const loadPreferredUploadMethod = () => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem(LAST_UPLOAD_METHOD_KEY) : null
+      const enabled = systemConfig?.upload_enabled !== false
+      if (v === 'file' && !enabled) return 'url'
+      return v === 'file' || v === 'url' ? v : 'url'
+    } catch { return 'url' }
+  }
+  const savePreferredUploadMethod = (v: 'url'|'file') => {
+    try { if (typeof window !== 'undefined') localStorage.setItem(LAST_UPLOAD_METHOD_KEY, v) } catch {}
+  }
   // 版本筛选
   const [filterVersion, setFilterVersion] = useState('')
   const [filterStart, setFilterStart] = useState('') // YYYY-MM-DD
@@ -1569,16 +1582,3 @@ export default function ProjectVersionsPage() {
     </div>
   )
 }
-  // 记住用户上次使用的上传方式（本地存储）
-  const LAST_UPLOAD_METHOD_KEY = 'hum:lastUploadMethod'
-  const loadPreferredUploadMethod = () => {
-    try {
-      const v = typeof window !== 'undefined' ? localStorage.getItem(LAST_UPLOAD_METHOD_KEY) : null
-      const enabled = systemConfig?.upload_enabled !== false
-      if (v === 'file' && !enabled) return 'url'
-      return v === 'file' || v === 'url' ? v : 'url'
-    } catch { return 'url' }
-  }
-  const savePreferredUploadMethod = (v: 'url'|'file') => {
-    try { if (typeof window !== 'undefined') localStorage.setItem(LAST_UPLOAD_METHOD_KEY, v) } catch {}
-  }
