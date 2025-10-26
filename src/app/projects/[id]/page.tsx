@@ -820,40 +820,14 @@ export default function ProjectVersionsPage() {
                       </p>
                     </div>
                   )}
-                  <RadioGroup
+                  <SegmentedToggle
                     value={formData.uploadMethod}
-                    onValueChange={(value: 'url' | 'file') => {
-                      if (value === 'file' && systemConfig?.upload_enabled === false) {
-                        toast.error('文件上传功能已被系统管理员禁用')
-                        return
-                      }
-                      savePreferredUploadMethod(value)
-                      setFormData({ ...formData, uploadMethod: value })
-                    }}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="url" id="url" />
-                      <Label htmlFor="url" className="cursor-pointer">
-                        使用下载链接
-                      </Label>
-                    </div>
-                    <div className={`flex items-center space-x-2 ${systemConfig?.upload_enabled === false ? 'opacity-50' : ''}`}>
-                      <RadioGroupItem 
-                        value="file" 
-                        id="file" 
-                        disabled={systemConfig?.upload_enabled === false}
-                      />
-                      <Label 
-                        htmlFor="file" 
-                        className={`${systemConfig?.upload_enabled === false ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                      >
-                        上传本地文件
-                        {systemConfig?.upload_enabled === false && (
-                          <span className="text-xs text-red-500 ml-1">(已禁用)</span>
-                        )}
-                      </Label>
-                    </div>
-                  </RadioGroup>
+                    onChange={(v)=>{ if (v==='file' && systemConfig?.upload_enabled===false) { toast.error('文件上传功能已被系统管理员禁用'); return } savePreferredUploadMethod(v as any); setFormData({ ...formData, uploadMethod: v as any }) }}
+                    left={{ value: 'url', label: '使用下载链接' }}
+                    right={{ value: 'file', label: '上传本地文件' }}
+                    disableRight={systemConfig?.upload_enabled === false}
+                    className="w-full sm:w-[380px]"
+                  />
                 </div>
                 {/* 根据选择显示不同的输入 */}
                 {formData.uploadMethod === 'url' ? (
