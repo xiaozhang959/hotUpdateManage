@@ -4,6 +4,7 @@ import { Version } from '@prisma/client';
 import { CACHE_CONFIG, CACHE_KEYS } from './config';
 
 interface CachedVersion {
+  id?: string;
   version: string;
   downloadUrl: string;
   downloadUrls?: string[];
@@ -14,6 +15,10 @@ interface CachedVersion {
   updatedAt?: Date; // 更新时间
   timestamp?: number; // 添加时间戳字段（Unix毫秒）
   isCurrent: boolean;
+  _provider?: string | null;
+  _objectKey?: string | null;
+  _configId?: string | null;
+  _providers?: string | null; // JSON string persisted in DB
 }
 
 interface RotationState {
@@ -204,6 +209,7 @@ class VersionCacheManager {
    */
   async warmupCache(projectId: string, version: Version): Promise<void> {
     const cachedVersion: CachedVersion = {
+      id: version.id,
       version: version.version,
       downloadUrl: version.downloadUrl,
       downloadUrls: version.downloadUrls ? JSON.parse(version.downloadUrls) : undefined,
@@ -212,7 +218,11 @@ class VersionCacheManager {
       changelog: version.changelog,
       createdAt: version.createdAt,
       updatedAt: version.updatedAt,
-      isCurrent: version.isCurrent
+      isCurrent: version.isCurrent,
+      _provider: (version as any).storageProvider || null,
+      _objectKey: (version as any).objectKey || null,
+      _configId: (version as any).storageConfigId || null,
+      _providers: (version as any).storageProviders || null
     };
     
     await this.setCachedVersion(projectId, version.version, cachedVersion);

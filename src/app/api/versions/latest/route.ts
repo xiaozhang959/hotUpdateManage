@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
 
     // 针对对象存储：优先返回可稳定访问的下载入口（带轮询索引），避免直链 403/404
     // 只有纯“LINK”类型时才返回直链
-    if ((cachedVersion as any).id && Array.isArray(cachedVersion.downloadUrls) && cachedVersion.downloadUrls.length > 0) {
+    if (Array.isArray(cachedVersion.downloadUrls) && cachedVersion.downloadUrls.length > 0) {
       const urls = cachedVersion.downloadUrls as string[]
       const idx = urls.indexOf(selectedUrl)
       const providersRaw = (cachedVersion as any)._providers || '[]'
@@ -233,7 +233,20 @@ export async function POST(req: NextRequest) {
       // 如果当前选中的链接不是 LINK（即需要签名/代理/本地流式）则返回 /download?i=idx
       if (!isLink) {
         const safeIdx = idx >= 0 ? idx : 0
-        selectedUrl = `/api/versions/${(cachedVersion as any).id}/download?i=${safeIdx}`
+        let vid = (cachedVersion as any).id
+        if (!vid) {
+          // 缓存里可能没有 id，回退到数据库取一次
+          try {
+            const found = await prisma.version.findFirst({
+              where: { version: cachedVersion.version, projectId: project.id },
+              select: { id: true }
+            })
+            vid = found?.id
+          } catch {}
+        }
+        if (vid) {
+          selectedUrl = `/api/versions/${vid}/download?i=${safeIdx}`
+        }
       }
     }
 
