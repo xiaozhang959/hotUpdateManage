@@ -830,9 +830,11 @@ export default function ProjectVersionsPage() {
                     className="w-full sm:w-[380px]"
                   />
                 </div>
-                {/* 根据选择显示不同的输入 */}
-                {formData.uploadMethod === 'url' ? (
-                  <div className="space-y-2">
+                {/* 根据选择显示不同的输入（平滑过渡，避免抖动） */}
+                <div className="relative overflow-hidden min-h-[180px]">
+                  <AnimatePresence mode="wait">
+                  {formData.uploadMethod === 'url' ? (
+                    <motion.div key="url" initial={{opacity:0, y:6}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-6}} transition={{duration:0.18}} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label>下载链接 *</Label>
                       <Button type="button" size="sm" variant="outline" onClick={() => { setFormData({ ...formData, downloadUrls: [...formData.downloadUrls, ''] }) }} className="h-7 px-2">
@@ -867,9 +869,9 @@ export default function ProjectVersionsPage() {
                       </Button>
                     </div>
                     <p className="text-xs text-gray-500">支持多个链接；很多 OSS/S3 的 ETag 即为 MD5；分片上传可能无法解析。</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
+                    </motion.div>
+                  ) : (
+                    <motion.div key="file" initial={{opacity:0, y:6}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-6}} transition={{duration:0.18}} className="space-y-2">
                     <Label>选择文件 *</Label>
                     <FileUpload onFileSelect={(file) => setFormData({ ...formData, file })} onFileRemove={() => setFormData({ ...formData, file: null })} selectedFile={formData.file} maxSize={systemConfig?.max_upload_size || 100 * 1024 * 1024} uploading={uploading} disabled={creating} />
                     <div className="space-y-2">
@@ -898,8 +900,10 @@ export default function ProjectVersionsPage() {
                         ))}
                       </div>
                     </div>
-                  </div>
-                )}
+                    </motion.div>
+                  )}
+                  </AnimatePresence>
+                </div>
                 {/* 更新日志 */}
                 <div className="space-y-2">
                   <Label htmlFor="changelog">更新日志</Label>

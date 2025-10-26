@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Footer } from '@/components/layout/footer'
+import { motion, AnimatePresence } from 'framer-motion'
 import { EmailVerificationBanner } from '@/components/email-verification-banner'
 import {
   Button,
@@ -811,9 +812,11 @@ export default function ProjectsPage() {
                 className="w-full sm:w-[380px]"
               />
             </div>
-            {/* 根据选择显示不同的输入 */}
-            {uploadForm.uploadMethod === 'url' ? (
-              <div className="space-y-2">
+            {/* 根据选择显示不同的输入（平滑过渡，避免抖动） */}
+            <div className="relative overflow-hidden min-h-[180px]">
+              <AnimatePresence mode="wait">
+              {uploadForm.uploadMethod === 'url' ? (
+                <motion.div key="url" initial={{opacity:0, y:6}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-6}} transition={{duration:0.18}} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>下载链接 *</Label>
                   <Button
@@ -864,9 +867,9 @@ export default function ProjectsPage() {
                 <p className="text-xs text-gray-500">
                   支持多个APK文件下载链接，API将随机返回其中一个链接
                 </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
+                </motion.div>
+              ) : (
+                <motion.div key="file" initial={{opacity:0, y:6}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-6}} transition={{duration:0.18}} className="space-y-2">
                 <Label>选择文件 *</Label>
                 <FileUpload onFileSelect={(file) => setUploadForm({ ...uploadForm, file })} onFileRemove={() => setUploadForm({ ...uploadForm, file: null })} selectedFile={uploadForm.file} maxSize={systemConfig?.max_upload_size || 100 * 1024 * 1024} uploading={uploading} disabled={uploadingVersion} />
                       <div className="space-y-2 mt-2">
@@ -895,8 +898,10 @@ export default function ProjectsPage() {
                           ))}
                         </div>
                       </div>
-              </div>
-            )}
+                </motion.div>
+              )}
+              </AnimatePresence>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="upload-changelog">
