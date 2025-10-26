@@ -44,7 +44,7 @@ next-env.d.ts
 prisma/dev.db
 
 # uploads
-uploads/
+uploads/*
 
 /src/generated/prisma
 
