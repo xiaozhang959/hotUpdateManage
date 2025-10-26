@@ -745,14 +745,14 @@ export default function ProjectsPage() {
 
       {/* 上传版本对话框 */}
       <Dialog open={!!uploadVersionDialog} onOpenChange={() => setUploadVersionDialog(null)}>
-        <DialogContent onOpenAutoFocus={fetchAvailableStorages}>
+        <DialogContent onOpenAutoFocus={fetchAvailableStorages} className="max-w-3xl sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>上传新版本</DialogTitle>
             <DialogDescription>
               为项目 {uploadVersionDialog?.name} 上传新版本
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-1">
             <div className="space-y-2">
               <Label htmlFor="version">版本号 *</Label>
               <Input

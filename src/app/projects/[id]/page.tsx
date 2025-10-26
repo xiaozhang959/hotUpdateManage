@@ -775,14 +775,14 @@ export default function ProjectVersionsPage() {
                 发布新版本
               </Button>
             </DialogTrigger>
-            <DialogContent onInteractOutside={() => {}} onOpenAutoFocus={fetchAvailableStorages} >
+            <DialogContent onInteractOutside={() => {}} onOpenAutoFocus={fetchAvailableStorages} className="max-w-3xl sm:max-w-4xl">
               <DialogHeader>
                 <DialogTitle>发布新版本</DialogTitle>
                 <DialogDescription>
                   填写版本信息，新版本将自动设为当前活跃版本
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
+              <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-1">
                 <div className="space-y-2">
                   <Label htmlFor="version">版本号 *</Label>
                   <Input
