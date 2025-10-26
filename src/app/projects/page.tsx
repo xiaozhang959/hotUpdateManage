@@ -116,6 +116,31 @@ export default function ProjectsPage() {
   }
   const [uploading, setUploading] = useState(false)
 
+  // 记住用户上次使用的上传方式（本地存储）
+  const LAST_UPLOAD_METHOD_KEY = 'hum:lastUploadMethod'
+  const loadPreferredUploadMethod = () => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem(LAST_UPLOAD_METHOD_KEY) : null
+      const enabled = systemConfig?.upload_enabled !== false
+      if (v === 'file' && !enabled) return 'url'
+      return v === 'file' || v === 'url' ? v : 'url'
+    } catch {
+      return 'url'
+    }
+  }
+  const savePreferredUploadMethod = (v: 'url'|'file') => {
+    try { if (typeof window !== 'undefined') localStorage.setItem(LAST_UPLOAD_METHOD_KEY, v) } catch {}
+  }
+
+  // 打开上传模态时应用上次选择
+  useEffect(() => {
+    if (uploadVersionDialog) {
+      const preferred = loadPreferredUploadMethod()
+      setUploadForm(prev => ({ ...prev, uploadMethod: preferred }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadVersionDialog])
+
   useEffect(() => {
     fetchProjects()
     // 检查是否需要邮箱验证和系统配置
@@ -957,25 +982,3 @@ export default function ProjectsPage() {
     </div>
   )
 }
-  // 记住用户上次使用的上传方式（本地存储）
-  const LAST_UPLOAD_METHOD_KEY = 'hum:lastUploadMethod'
-  const loadPreferredUploadMethod = () => {
-    try {
-      const v = typeof window !== 'undefined' ? localStorage.getItem(LAST_UPLOAD_METHOD_KEY) : null
-      const enabled = systemConfig?.upload_enabled !== false
-      if (v === 'file' && !enabled) return 'url'
-      return v === 'file' || v === 'url' ? v : 'url'
-    } catch { return 'url' }
-  }
-  const savePreferredUploadMethod = (v: 'url'|'file') => {
-    try { if (typeof window !== 'undefined') localStorage.setItem(LAST_UPLOAD_METHOD_KEY, v) } catch {}
-  }
-
-  // 打开上传模态时应用上次选择
-  useEffect(() => {
-    if (uploadVersionDialog) {
-      const preferred = loadPreferredUploadMethod()
-      setUploadForm(prev => ({ ...prev, uploadMethod: preferred }))
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uploadVersionDialog])
