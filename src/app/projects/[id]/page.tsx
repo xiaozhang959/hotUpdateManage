@@ -766,7 +766,8 @@ export default function ProjectVersionsPage() {
               if (open) {
                 // 对话框打开时自动填充下一个版本号
                 const nextVersion = generateNextVersion()
-                setFormData(prev => ({ ...prev, version: nextVersion }))
+                const preferred = loadPreferredUploadMethod()
+                setFormData(prev => ({ ...prev, version: nextVersion, uploadMethod: preferred }))
               }
             }}>
             <DialogTrigger asChild>
@@ -813,6 +814,7 @@ export default function ProjectVersionsPage() {
                         toast.error('文件上传功能已被系统管理员禁用')
                         return
                       }
+                      savePreferredUploadMethod(value)
                       setFormData({ ...formData, uploadMethod: value })
                     }}
                   >
@@ -1567,3 +1569,16 @@ export default function ProjectVersionsPage() {
     </div>
   )
 }
+  // 记住用户上次使用的上传方式（本地存储）
+  const LAST_UPLOAD_METHOD_KEY = 'hum:lastUploadMethod'
+  const loadPreferredUploadMethod = () => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem(LAST_UPLOAD_METHOD_KEY) : null
+      const enabled = systemConfig?.upload_enabled !== false
+      if (v === 'file' && !enabled) return 'url'
+      return v === 'file' || v === 'url' ? v : 'url'
+    } catch { return 'url' }
+  }
+  const savePreferredUploadMethod = (v: 'url'|'file') => {
+    try { if (typeof window !== 'undefined') localStorage.setItem(LAST_UPLOAD_METHOD_KEY, v) } catch {}
+  }
