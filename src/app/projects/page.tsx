@@ -38,7 +38,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  Separator
+  Separator,
+  SegmentedToggle
 } from '@/components/ui'
 import { toast } from 'sonner'
 import {
