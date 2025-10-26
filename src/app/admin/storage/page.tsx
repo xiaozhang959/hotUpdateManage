@@ -22,20 +22,20 @@ export default function AdminStoragePage() {
   const [open, setOpen] = useState(false)
   const [testing, setTesting] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<any>({ id: '', name: '', provider: 'LOCAL' as Provider, isDefault: false, config: {} })
+  const [form, setForm] = useState<any>({ id: '', name: '', provider: 'LOCAL' as Provider, isDefault: false, config: {}, scope: 'global' as 'global'|'user' })
+  const [viewScope, setViewScope] = useState<'global'|'user'>('global')
 
   const fetchItems = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/storage-configs?scope=global')
+      const res = await fetch(`/api/admin/storage-configs?scope=${viewScope}`)
       const data = await res.json()
       setItems(data.data || [])
     } catch {
       toast.error('获取列表失败')
     } finally { setLoading(false) }
   }
-
-  useEffect(() => { fetchItems() }, [])
+  useEffect(() => { fetchItems() }, [viewScope])
 
   const providerFields = (p: Provider) => {
     switch (p) {
@@ -147,7 +147,7 @@ export default function AdminStoragePage() {
   const save = async () => {
     setSaving(true)
     try {
-      const payload = { id: form.id||undefined, name: form.name, provider: form.provider, userId: null, isDefault: form.isDefault, config: form.config }
+      const payload = { id: form.id||undefined, name: form.name, provider: form.provider, userId: form.scope==='global' ? null : 'self', isDefault: form.isDefault, config: form.config }
       const res = await fetch('/api/admin/storage-configs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
       if (!res.ok) throw new Error('保存失败')
       toast.success('已保存')
@@ -166,12 +166,18 @@ export default function AdminStoragePage() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">存储配置（全局）</h1>
-          <p className="text-sm text-gray-500">设置全局默认存储，用户未设置时使用</p>
+          <h1 className="text-2xl font-bold">存储配置（全局/仅我）</h1>
+          <p className="text-sm text-gray-500">设置全局默认存储，或仅管理员自己可用的存储</p>
         </div>
-        <Button onClick={()=>{ setForm({ id:'', name:'', provider:'LOCAL', isDefault:false, config:{} }); setOpen(true) }}>
-          <Plus className="h-4 w-4 mr-1"/>新增配置
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2 border rounded px-2 py-1 text-sm">
+            <label className="flex items-center gap-1 cursor-pointer"><input type="radio" className="accent-orange-600" checked={viewScope==='global'} onChange={()=>setViewScope('global')} /> 全局</label>
+            <label className="flex items-center gap-1 cursor-pointer"><input type="radio" className="accent-orange-600" checked={viewScope==='user'} onChange={()=>setViewScope('user')} /> 仅我</label>
+          </div>
+          <Button onClick={()=>{ setForm({ id:'', name:'', provider:'LOCAL', isDefault:false, config:{}, scope:'global' }); setOpen(true) }}>
+            <Plus className="h-4 w-4 mr-1"/>新增配置
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -181,6 +187,7 @@ export default function AdminStoragePage() {
               <TableRow>
                 <TableHead>名称</TableHead>
                 <TableHead>Provider</TableHead>
+                <TableHead>作用域</TableHead>
                 <TableHead>默认</TableHead>
                 <TableHead>创建时间</TableHead>
                 <TableHead>操作</TableHead>
@@ -191,6 +198,7 @@ export default function AdminStoragePage() {
                 <TableRow key={it.id}>
                   <TableCell className="font-medium">{it.name}</TableCell>
                   <TableCell>{it.provider}</TableCell>
+                  <TableCell>{it.userId ? (<Badge variant="secondary">仅我</Badge>) : (<Badge variant="outline">全局</Badge>)}</TableCell>
                   <TableCell>{it.isDefault ? <Badge variant="outline">默认</Badge> : '-'}</TableCell>
                   <TableCell>{new Date(it.createdAt).toLocaleString()}</TableCell>
                   <TableCell className="flex gap-2">
@@ -226,9 +234,19 @@ export default function AdminStoragePage() {
                 </select>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <input id="isDefault" type="checkbox" checked={!!form.isDefault} onChange={e=>setForm({...form, isDefault:e.target.checked})}/>
-              <Label htmlFor="isDefault">设为默认</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>权限<InfoHint text="选择该存储配置的可见范围：全局=所有用户可见；仅我=仅当前管理员本人可见。" /></Label>
+                <div className="flex items-center gap-4 text-sm">
+                  <label className="flex items-center gap-1 cursor-pointer"><input type="radio" className="accent-orange-600" checked={form.scope==='global'} onChange={()=>setForm({...form, scope:'global'})} /> 全局（所有用户）</label>
+                  <label className="flex items-center gap-1 cursor-pointer"><input type="radio" className="accent-orange-600" checked={form.scope==='user'} onChange={()=>setForm({...form, scope:'user'})} /> 仅我（管理员）</label>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pt-6">
+                <input id="isDefault" type="checkbox" checked={!!form.isDefault} onChange={e=>setForm({...form, isDefault:e.target.checked})}/>
+                <Label htmlFor="isDefault">设为默认</Label>
+                <span className="text-xs text-gray-500">默认配置在同一作用域内唯一</span>
+              </div>
             </div>
             <Separator />
             {providerFields(form.provider)}

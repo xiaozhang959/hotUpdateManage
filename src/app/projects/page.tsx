@@ -873,13 +873,18 @@ export default function ProjectsPage() {
                         <Label>选择存储（可多选）</Label>
                         <div className="grid grid-cols-2 gap-2">
                           {availableStorages.map((s) => (
-                            <label key={String(s.id ?? 'local')} className="flex items-center gap-2 text-sm border rounded px-2 py-1">
+                            <label key={String(s.id ?? 'local')} className="flex items-center justify-between gap-2 text-sm border rounded px-2 py-1">
+                              <div className="flex items-center gap-2">
                               <input type="checkbox" checked={selectedStorageIds.includes(String(s.id ?? 'local'))} onChange={(e)=>{
                                 const key = String(s.id ?? 'local');
                                 setSelectedStorageIds(prev => e.target.checked ? Array.from(new Set([...prev, key])) : prev.filter(x=>x!==key))
                               }} />
                               <span className="font-medium">{s.name}</span>
                               <span className="text-xs text-gray-500">({s.provider}{s.isDefault?'·默认':''})</span>
+                              </div>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded border text-gray-600">
+                                {s.scope === 'user' ? '我的' : s.scope === 'global' ? '全局' : '内置'}
+                              </span>
                             </label>
                           ))}
                         </div>
