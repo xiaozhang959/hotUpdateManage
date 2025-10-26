@@ -240,7 +240,7 @@ export default function ProjectVersionsPage() {
       let downloadUrls: string[] = []
       let downloadUrl = ''
       let md5 = ''
-
+      let storageProviders: { type: string | undefined; name: string; configId: any; objectKey: any }[] = []
       // 如果是文件上传
       if (formData.uploadMethod === 'file' && formData.file) {
         setUploading(true)
@@ -266,7 +266,7 @@ export default function ProjectVersionsPage() {
         var objectKey = uploadResults[0]?.objectKey
         var storageConfigId = uploadResults[0]?.storageConfigId
         // 记录每条链接的“类型+名称”用于 UI 展示
-        var storageProviders = uploadResults.map(r => {
+        storageProviders = uploadResults.map(r => {
           const type = r.storageProvider as string | undefined
           const cfgId = r.storageConfigId ?? null
           const found = availableStorages.find(s => String(s.id ?? 'local') === String(cfgId ?? 'local'))
@@ -282,7 +282,7 @@ export default function ProjectVersionsPage() {
         downloadUrl = downloadUrls[0] // 向后兼容，第一个链接作为主链接
         md5 = (formData.md5 || '').trim()
         // URL 方式：据链接类型填充“名称+类型”数组，便于展示
-        var storageProviders = downloadUrls.map(u => ({
+        storageProviders = downloadUrls.map(u => ({
           type: isLocalUploadUrl(u) ? 'LOCAL' : 'LINK',
           name: isLocalUploadUrl(u) ? '本地存储(内置)' : '链接',
           configId: null,

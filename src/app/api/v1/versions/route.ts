@@ -133,6 +133,10 @@ export async function POST(req: NextRequest) {
     let downloadUrls: string[] = []
     let md5: string = ''
     let md5Source: string = 'manual'
+    // 为文件上传分支准备的外部可见变量，便于在后续写入数据库
+    let put: any = null
+    let providerName: string | null = null
+    let activeConfigId: string | null = null
 
     // 强制 MD5 配置
     const requireMd5 = (await getConfig('require_md5_for_link_uploads')) as boolean
@@ -151,8 +155,11 @@ export async function POST(req: NextRequest) {
         .replace(/^\./g, '_')
       const fileName = `${version}_${Date.now()}_${safeFileName}`
 
-      const { provider, configId } = await getActiveStorageProvider(user.id)
-      const put = await provider.putObject({ projectId, fileName, buffer, contentType: file.type || 'application/octet-stream' })
+      const ret = await getActiveStorageProvider(user.id)
+      const provider = ret.provider
+      activeConfigId = ret.configId || null
+      put = await provider.putObject({ projectId, fileName, buffer, contentType: file.type || 'application/octet-stream' })
+      providerName = provider.name
       downloadUrl = put.url
       downloadUrls = [downloadUrl]
       md5 = put.md5
@@ -240,10 +247,10 @@ export async function POST(req: NextRequest) {
         downloadUrls: JSON.stringify(downloadUrls),
         md5,
         md5Source,
-        storageProvider: file ? provider.name : null,
-        objectKey: file ? put.objectKey : null,
-        storageConfigId: file ? (configId || null) : null,
-        storageProviders: JSON.stringify(file ? [provider.name] : []),
+        storageProvider: providerName,
+        objectKey: put?.objectKey ?? null,
+        storageConfigId: activeConfigId,
+        storageProviders: JSON.stringify(providerName ? [providerName] : []),
         forceUpdate,
         changelog,
         isCurrent: true

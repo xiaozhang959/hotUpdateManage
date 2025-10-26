@@ -359,6 +359,7 @@ export default function ProjectsPage() {
       let downloadUrl = ''
       let md5 = ''
 
+      let storageProviders: { type: string | undefined; name: string; configId: any; objectKey: any }[] = []
       // 如果是文件上传
       if (uploadForm.uploadMethod === 'file' && uploadForm.file) {
         setUploading(true)
@@ -380,7 +381,7 @@ export default function ProjectsPage() {
         var storageProvider = uploadResults[0]?.storageProvider
         var objectKey = uploadResults[0]?.objectKey
         var storageConfigId = uploadResults[0]?.storageConfigId
-        var storageProviders = uploadResults.map(r => {
+        storageProviders = uploadResults.map(r => {
           const type = r.storageProvider as string | undefined
           const cfgId = r.storageConfigId ?? null
           const found = availableStorages.find((s:any) => String(s.id ?? 'local') === String(cfgId ?? 'local'))
@@ -394,7 +395,7 @@ export default function ProjectsPage() {
         // Keep user-provided URLs as-is (no encoding)
         downloadUrls = validUrls
         downloadUrl = downloadUrls[0] // 向后兼容，第一个链接作为主链接
-        var storageProviders = downloadUrls.map(u => ({
+        storageProviders = downloadUrls.map(u => ({
           type: (u.includes('/uploads/') ? 'LOCAL' : 'LINK'),
           name: (u.includes('/uploads/') ? '本地存储(内置)' : '链接'),
           configId: null,

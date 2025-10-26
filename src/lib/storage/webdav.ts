@@ -39,7 +39,7 @@ export function createWebDAVProvider(cfg: WebDAVConfig): StorageProvider {
           ...(authHeader ? { Authorization: authHeader } : {}),
           'Content-Type': 'application/octet-stream'
         },
-        body: buffer
+        body: buffer as any
       })
       if (!res.ok) {
         throw new Error(`WebDAV PUT failed: ${res.status} ${res.statusText}`)

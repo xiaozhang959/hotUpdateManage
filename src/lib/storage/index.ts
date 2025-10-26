@@ -46,13 +46,13 @@ function buildProvider(name: string, json: string): StorageProvider {
   const cfg = parseConfig(json)
   switch (name) {
     case 'LOCAL':
-      return createLocalProvider(cfg)
+      return createLocalProvider(cfg as any)
     case 'WEBDAV':
-      return createWebDAVProvider(cfg)
+      return createWebDAVProvider(cfg as any)
     case 'S3':
-      return createS3Provider(cfg)
+      return createS3Provider(cfg as any)
     case 'OSS':
-      return createOSSProvider(cfg)
+      return createOSSProvider(cfg as any)
     default:
       return createLocalProvider()
   }

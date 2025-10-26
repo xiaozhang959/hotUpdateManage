@@ -14,6 +14,8 @@ interface Item {
   isDefault: boolean
   configJson: string
   createdAt: string
+  // 来自 /api/admin/storage-configs 的所有权字段：用户配置为 userId，公共配置为 null
+  userId?: string | null
 }
 
 export default function AdminStoragePage() {
