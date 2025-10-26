@@ -198,7 +198,13 @@ export default function AdminStoragePage() {
                 <TableRow key={it.id}>
                   <TableCell className="font-medium">{it.name}</TableCell>
                   <TableCell>{it.provider}</TableCell>
-                  <TableCell>{it.userId ? (<Badge variant="secondary">仅我</Badge>) : (<Badge variant="outline">全局</Badge>)}</TableCell>
+                  <TableCell>
+                    {it.userId ? (
+                      <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-300">仅我</Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300">全局</Badge>
+                    )}
+                  </TableCell>
                   <TableCell>{it.isDefault ? <Badge variant="outline">默认</Badge> : '-'}</TableCell>
                   <TableCell>{new Date(it.createdAt).toLocaleString()}</TableCell>
                   <TableCell className="flex gap-2">

@@ -895,7 +895,13 @@ export default function ProjectVersionsPage() {
                               <span className="font-medium">{s.name}</span>
                               <span className="text-xs text-gray-500">({s.provider}{s.isDefault?'·默认':''})</span>
                             </div>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded border text-gray-600">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                              s.scope === 'user'
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-300'
+                                : s.scope === 'global'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                : 'bg-gray-50 text-gray-700 border-gray-300'
+                            }`}>
                               {s.scope === 'user' ? '我的' : s.scope === 'global' ? '全局' : '内置'}
                             </span>
                           </label>
