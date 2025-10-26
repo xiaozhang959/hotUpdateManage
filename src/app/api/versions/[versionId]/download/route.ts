@@ -115,16 +115,35 @@ export async function GET(
       return new Response(upstream.body, { status: 200, headers })
     }
 
-    // 本地存储：直接从本地uploads目录流式返回，避免额外跳转
+    // 本地存储：直接从本地目录流式返回，baseDir 来自存储配置（默认为 'uploads'）
     if (provider === 'LOCAL') {
-      const key = objKey || deriveObjectKeyFromUrl(safeParseArray(version.downloadUrls)[index])
+      // 读取本地存储配置（若有），以确定 baseDir 与 publicPrefix
+      let baseDir = 'uploads'
+      let publicPrefix = '/uploads'
+      if (storageConfigId) {
+        const cfg = await prisma.storageConfig.findUnique({ where: { id: storageConfigId } })
+        if (cfg?.configJson) {
+          try {
+            const conf = JSON.parse(cfg.configJson)
+            if (typeof conf.baseDir === 'string' && conf.baseDir.trim()) baseDir = conf.baseDir.trim()
+            if (typeof conf.publicPrefix === 'string' && conf.publicPrefix.trim()) publicPrefix = conf.publicPrefix.trim()
+          } catch {}
+        }
+      }
+
+      let key = objKey
+      if (!key) {
+        // 兼容旧版本：从直链按 publicPrefix 推导对象键
+        key = deriveLocalObjectKeyFromUrl(safeParseArray(version.downloadUrls)[index], publicPrefix) ||
+              deriveObjectKeyFromUrl(safeParseArray(version.downloadUrls)[index])
+      }
       if (!key) return new Response(JSON.stringify({ error: '对象键缺失' }), { status: 400 })
       const safe = parseLocalObjectKey(key)
       if (!safe) {
         return new Response(JSON.stringify({ error: '非法对象键' }), { status: 400 })
       }
-      const filePath = path.join(process.cwd(), 'uploads', safe.projectId, safe.fileName)
-      const uploadsRoot = path.join(process.cwd(), 'uploads')
+      const filePath = path.join(process.cwd(), baseDir, safe.projectId, safe.fileName)
+      const uploadsRoot = path.join(process.cwd(), baseDir)
       // 目录穿越保护
       const resolved = path.resolve(filePath)
       if (!resolved.startsWith(path.resolve(uploadsRoot))) {
@@ -194,6 +213,19 @@ function deriveObjectKeyFromUrl(u?: string): string | null {
 function clamp(n: number, min: number, max: number) {
   if (!Number.isFinite(n)) return min
   return Math.max(min, Math.min(max, Math.floor(n)))
+}
+
+function deriveLocalObjectKeyFromUrl(u?: string, publicPrefix?: string): string | null {
+  if (!u) return null
+  try {
+    const url = u.startsWith('http') ? new URL(u) : new URL(u, 'http://localhost')
+    const p = decodeURIComponent(url.pathname)
+    const prefix = (publicPrefix || '/uploads').replace(/\/$/, '')
+    const re = new RegExp('^' + prefix.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&') + '/([^/]+)/(.+)$')
+    const m = p.match(re)
+    if (m) return `${m[1]}/${m[2]}`
+    return null
+  } catch { return null }
 }
 
 function parseLocalObjectKey(objectKey: string): { projectId: string; fileName: string } | null {
