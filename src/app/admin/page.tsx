@@ -447,7 +447,8 @@ export default function AdminPage() {
         }
 
         const uploadResult = await uploadResponse.json()
-        downloadUrl = window.location.origin + uploadResult.data.url
+        // 仅存储相对路径，避免绑定到本机域名/IP
+        downloadUrl = uploadResult.data.url
         md5 = uploadResult.data.md5
         setUploading(false)
       }

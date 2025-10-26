@@ -258,7 +258,8 @@ export default function ProjectVersionsPage() {
           uploadResults.push(json.data)
         }
         // 汇总链接与MD5
-        downloadUrls = uploadResults.map(r => (r.url.startsWith('http') ? r.url : (window.location.origin + r.url)))
+        // 仅保存上传接口返回的相对/原始URL，不拼接 window.location.origin
+        downloadUrls = uploadResults.map(r => r.url)
         downloadUrl = downloadUrls[0]
         md5 = uploadResults[0]?.md5 || ''
         // 取第一条作为向后兼容单字段

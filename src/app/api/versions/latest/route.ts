@@ -1,1 +1,151 @@
-import { NextResponse, NextRequest } from 'next/server'import { prisma } from '@/lib/prisma'import { versionCache } from '@/lib/cache/version-cache'import { validateBearerToken } from '@/lib/auth-bearer'import { checkRateLimit, getClientIp } from '@/lib/rate-limit'export async function POST(req: NextRequest) {  try {    // 妫€鏌ラ€熺巼闄愬埗    const clientIp = getClientIp(req)    const rateLimitResult = await checkRateLimit(clientIp, 'api/versions/latest')        if (!rateLimitResult.success) {      return NextResponse.json(        {           error: 'Too many requests',          message: `閫熺巼闄愬埗锛氭瘡鍒嗛挓鏈€澶?${rateLimitResult.limit} 娆¤姹俙,          retryAfter: rateLimitResult.reset.toISOString()        },        {           status: 429,          headers: {            'X-RateLimit-Limit': rateLimitResult.limit.toString(),            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),            'X-RateLimit-Reset': rateLimitResult.reset.toISOString(),            'Retry-After': Math.ceil((rateLimitResult.reset.getTime() - Date.now()) / 1000).toString()          }        }      )    }    let project: any = null    const body = await req.json().catch(() => ({}))        // Try Bearer token authentication first    const user = await validateBearerToken(req)    if (user) {      // If using Bearer token, projectId must be provided in the request body      const { projectId } = body            if (!projectId) {        return NextResponse.json(          { error: 'Project ID is required when using Bearer token authentication' },          { status: 400 }        )      }            // Verify project ownership      project = await prisma.project.findFirst({        where: {          id: projectId,          userId: user.id        },        select: {          id: true,          currentVersion: true        }      })            if (!project) {        return NextResponse.json(          { error: 'Project not found or access denied' },          { status: 404 }        )      }    } else {      // Fall back to API key authentication      const apiKeyFromHeader = req.headers.get('X-API-Key')      const apiKey = apiKeyFromHeader || body.apiKey      if (!apiKey) {        return NextResponse.json(          { error: 'Authentication required - provide Bearer token or API key' },          { status: 401 }        )      }      // 浼樺寲锛氬彧鏌ヨ蹇呰瀛楁锛屼娇鐢ㄧ储寮曟煡璇?      project = await prisma.project.findUnique({        where: { apiKey },        select: {          id: true,          currentVersion: true        }      })      if (!project) {        return NextResponse.json(          { error: 'Invalid API key' },          { status: 401 }        )      }    }    // 灏濊瘯浠庣紦瀛樿幏鍙栫増鏈俊鎭?    let cachedVersion = await versionCache.getCachedVersion(project.id, 'latest')        if (!cachedVersion) {      // 缂撳瓨鏈懡涓紝浠庢暟鎹簱鑾峰彇      let currentVersion = null      if (project.currentVersion) {        // 浼樺寲锛氫娇鐢ㄥ鍚堢储寮曟煡璇紝鍙€夋嫨闇€瑕佺殑瀛楁        currentVersion = await prisma.version.findFirst({          where: {            projectId: project.id,            version: project.currentVersion          },          select: {            id: true,            version: true,            downloadUrl: true,            downloadUrls: true,            urlRotationIndex: true,            md5: true,            forceUpdate: true,            changelog: true,            isCurrent: true,            storageProvider: true,            objectKey: true,            storageConfigId: true,            storageProviders: true,            createdAt: true,            updatedAt: true          }        })      }      // 浼樺寲锛氬鏋滄病鏈夎缃綋鍓嶇増鏈垨鎵句笉鍒帮紝鑾峰彇鏈€鏂扮増鏈?      if (!currentVersion) {        currentVersion = await prisma.version.findFirst({          where: {            projectId: project.id          },          select: {            id: true,            version: true,            downloadUrl: true,            downloadUrls: true,            urlRotationIndex: true,            md5: true,            forceUpdate: true,            changelog: true,            isCurrent: true,            storageProvider: true,            objectKey: true,            storageConfigId: true,            storageProviders: true,            createdAt: true,            updatedAt: true          },          orderBy: {            createdAt: 'desc'          }        })      }      if (!currentVersion) {        return NextResponse.json(          { error: '璇ラ」鐩殏鏃犲彂甯冪増鏈? },          { status: 404 }        )      }      // 鍑嗗缂撳瓨鏁版嵁      const downloadUrls = currentVersion.downloadUrls ?         JSON.parse(currentVersion.downloadUrls) : null            cachedVersion = {        id: currentVersion.id,        version: currentVersion.version,        downloadUrl: currentVersion.downloadUrl,        downloadUrls: downloadUrls,        md5: currentVersion.md5,        forceUpdate: currentVersion.forceUpdate,        changelog: currentVersion.changelog,        createdAt: currentVersion.createdAt,        updatedAt: currentVersion.updatedAt,        timestamp: new Date(currentVersion.updatedAt).getTime(), // 鍩轰簬updatedAt璁＄畻鏃堕棿鎴?        isCurrent: currentVersion.isCurrent,        _provider: currentVersion.storageProvider,        _objectKey: currentVersion.objectKey,        _configId: currentVersion.storageConfigId,        _providers: currentVersion.storageProviders || '[]'      }            // 瀛樺叆缂撳瓨      await versionCache.setCachedVersion(project.id, 'latest', cachedVersion)            // 濡傛灉杩欎釜鐗堟湰鏈夌壒瀹氱殑鐗堟湰鍙凤紝涔熺紦瀛樹竴浠?      await versionCache.setCachedVersion(project.id, currentVersion.version, cachedVersion)    }    // 澶勭悊澶氶摼鎺ヨ疆璇?    let selectedUrl = cachedVersion.downloadUrl // 榛樿浣跨敤涓婚摼鎺?        // 濡傛灉瀛樺湪澶氫釜涓嬭浇閾炬帴    if (cachedVersion.downloadUrls && Array.isArray(cachedVersion.downloadUrls) &&         cachedVersion.downloadUrls.length > 0) {      // 浣跨敤缂撳瓨鐨勮疆璇㈡満鍒?      const rotation = await versionCache.getNextRotationUrl(        `${project.id}:${cachedVersion.version}`,        cachedVersion.downloadUrls      )      selectedUrl = rotation.url            // 鍙湁鍦ㄩ渶瑕佹椂鎵嶆壒閲忔洿鏂版暟鎹簱锛堝噺灏戞暟鎹簱鍐欐搷浣滐級      if (rotation.shouldUpdateDb) {        // 寮傛鏇存柊鏁版嵁搴擄紝涓嶉樆濉炲搷搴?        prisma.version.updateMany({          where: {            projectId: project.id,            version: cachedVersion.version          },          data: {            urlRotationIndex: 0 // 閲嶇疆绱㈠紩锛屽疄闄呰疆璇㈢姸鎬佺敱缂撳瓨绠＄悊          }        }).catch(err => {          console.error('鎵归噺鏇存柊杞绱㈠紩澶辫触:', err)        })      }    }    // 閽堝瀵硅薄瀛樺偍锛氫紭鍏堣繑鍥炲彲绋冲畾璁块棶鐨勪笅杞藉叆鍙ｏ紙甯﹁疆璇㈢储寮曪級锛岄伩鍏嶇洿閾?403/404    // 鍙湁绾€淟INK鈥濈被鍨嬫椂鎵嶈繑鍥炵洿閾?    if (Array.isArray(cachedVersion.downloadUrls) && cachedVersion.downloadUrls.length > 0) {      const urls = cachedVersion.downloadUrls as string[]      const idx = urls.indexOf(selectedUrl)      const providersRaw = (cachedVersion as any)._providers || '[]'      let providers: any[] = []      try { providers = JSON.parse(providersRaw) } catch { providers = [] }      const type = (providers[idx]?.type || providers[idx] || '').toString().toUpperCase()      const isLink = type === 'LINK'      // 濡傛灉褰撳墠閫変腑鐨勯摼鎺ヤ笉鏄?LINK锛堝嵆闇€瑕佺鍚?浠ｇ悊/鏈湴娴佸紡锛夊垯杩斿洖 /download?i=idx      if (!isLink) {        const safeIdx = idx >= 0 ? idx : 0        let vid = (cachedVersion as any).id        if (!vid) {          // 缂撳瓨閲屽彲鑳芥病鏈?id锛屽洖閫€鍒版暟鎹簱鍙栦竴娆?          try {            const found = await prisma.version.findFirst({              where: { version: cachedVersion.version, projectId: project.id },              select: { id: true }            })            vid = found?.id          } catch {}        }        if (vid) {          selectedUrl = `/api/versions/${vid}/download?i=${safeIdx}`        }      }    }    // 缁熶竴杩斿洖鈥滅粷瀵筓RL鈥濓紝渚夸簬瀹㈡埛绔洿鎺ヤ娇鐢紙KISS锛?    const absoluteUrl = toAbsoluteUrl(req, selectedUrl)    return NextResponse.json({      success: true,      data: {        version: cachedVersion.version,        downloadUrl: absoluteUrl, // 杩斿洖鍙洿鎺ヨ闂殑缁濆閾炬帴        md5: cachedVersion.md5,        forceUpdate: cachedVersion.forceUpdate,        changelog: cachedVersion.changelog,        createdAt: cachedVersion.createdAt,        updatedAt: cachedVersion.updatedAt,        timestamp: cachedVersion.timestamp || new Date(cachedVersion.updatedAt || cachedVersion.createdAt).getTime(), // 鍩轰簬updatedAt璁＄畻鏃堕棿鎴?        isCurrent: cachedVersion.isCurrent      }    })  } catch (error) {    console.error('鑾峰彇褰撳墠鐗堟湰澶辫触:', error)    return NextResponse.json(      { error: '鑾峰彇褰撳墠鐗堟湰澶辫触' },      { status: 500 }    )  }}// 灏嗙浉瀵硅矾寰勮浆鎹负缁濆URL锛堟敮鎸佸弽鍚戜唬鐞嗭級function toAbsoluteUrl(req: NextRequest, url: string) {  try {    // 宸叉槸缁濆鍦板潃    if (/^https?:\/\//i.test(url)) return url    // Next 鎻愪緵鐨?origin 鑳借緝濂介€傞厤鏈湴/鐢熶骇涓庝唬鐞?    const origin = req.nextUrl?.origin    return new URL(url, origin).toString()  } catch {    // 鍏滃簳锛歭ocalhost锛圷AGNI锛氫笉寮曞叆棰濆閰嶇疆锛屽敖閲忕畝鍗曪級    return `http://localhost:3000${url}`  }}
+import { NextResponse, NextRequest } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { validateBearerToken } from '@/lib/auth-bearer'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+
+export async function POST(req: NextRequest) {
+  try {
+    // 简单限流
+    const clientIp = getClientIp(req)
+    const rate = await checkRateLimit(clientIp, 'api/versions/latest')
+    if (!rate.success) {
+      return NextResponse.json(
+        {
+          error: 'Too many requests',
+          retryAfter: rate.reset.toISOString(),
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': rate.limit.toString(),
+            'X-RateLimit-Remaining': rate.remaining.toString(),
+            'X-RateLimit-Reset': rate.reset.toISOString(),
+          },
+        },
+      )
+    }
+
+    // 认证：优先 Bearer，再退回 API Key
+    const body = await req.json().catch(() => ({}))
+    let project: { id: string; currentVersion: string | null } | null = null
+
+    const user = await validateBearerToken(req)
+    if (user) {
+      const { projectId } = body || {}
+      if (!projectId) {
+        return NextResponse.json(
+          { error: 'Project ID is required when using Bearer token' },
+          { status: 400 },
+        )
+      }
+      project = await prisma.project.findFirst({
+        where: { id: projectId, userId: user.id },
+        select: { id: true, currentVersion: true },
+      })
+    } else {
+      const apiKeyFromHeader = req.headers.get('X-API-Key') || undefined
+      const apiKey = apiKeyFromHeader || (body?.apiKey as string | undefined)
+      if (!apiKey) {
+        return NextResponse.json(
+          { error: 'Authentication required - provide Bearer token or X-API-Key' },
+          { status: 401 },
+        )
+      }
+      project = await prisma.project.findUnique({
+        where: { apiKey },
+        select: { id: true, currentVersion: true },
+      })
+    }
+
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 })
+    }
+
+    // 读取当前版本（优先 currentVersion，其次按时间最新）
+    let version = project.currentVersion
+      ? await prisma.version.findFirst({
+          where: { projectId: project.id, version: project.currentVersion },
+          select: baseSelect,
+        })
+      : null
+    if (!version) {
+      version = await prisma.version.findFirst({
+        where: { projectId: project.id },
+        orderBy: { createdAt: 'desc' },
+        select: baseSelect,
+      })
+    }
+    if (!version) {
+      return NextResponse.json({ error: 'No versions available' }, { status: 404 })
+    }
+
+    // 选择下载链接（相对路径策略）：
+    const urls = safeParseArray(version.downloadUrls)
+    const idx = Math.max(0, Math.min(urls.length - 1, version.urlRotationIndex || 0))
+    let selected = urls.length > 0 ? urls[idx] : version.downloadUrl
+
+    // 非 LINK 类型（本地/S3/OSS/WebDAV等）统一通过代理下载路由，返回相对路径
+    if (!isLinkType(version.storageProviders, idx)) {
+      selected = `/api/versions/${version.id}/download?i=${idx}`
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        version: version.version,
+        downloadUrl: selected, // 仅返回相对路径或原始外链
+        md5: version.md5,
+        forceUpdate: version.forceUpdate,
+        changelog: version.changelog,
+        createdAt: version.createdAt,
+        updatedAt: version.updatedAt,
+        timestamp:
+          (version.updatedAt ? new Date(version.updatedAt) : new Date(version.createdAt)).getTime(),
+        isCurrent: version.isCurrent,
+      },
+    })
+  } catch (error) {
+    console.error('Failed to get latest version:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+const baseSelect = {
+  id: true,
+  version: true,
+  downloadUrl: true,
+  downloadUrls: true,
+  urlRotationIndex: true,
+  md5: true,
+  forceUpdate: true,
+  changelog: true,
+  isCurrent: true,
+  storageProviders: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Record<string, boolean>
+
+function safeParseArray(json: any): string[] {
+  try {
+    const arr = typeof json === 'string' ? JSON.parse(json) : json
+    return Array.isArray(arr) ? arr : []
+  } catch {
+    return []
+  }
+}
+
+function isLinkType(storageProviders: any, index: number): boolean {
+  try {
+    const arr = typeof storageProviders === 'string' ? JSON.parse(storageProviders) : storageProviders
+    if (!Array.isArray(arr)) return false
+    const cur = arr[index]
+    if (typeof cur === 'string') return cur.toUpperCase() === 'LINK'
+    if (cur && typeof cur === 'object') return String(cur.type || '').toUpperCase() === 'LINK'
+    return false
+  } catch {
+    return false
+  }
+}
+
+export const runtime = 'nodejs'
+
