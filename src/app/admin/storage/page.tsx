@@ -1,6 +1,5 @@
 "use client"
-import { useEffect, useState } from 'react'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, Input, Label, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, Table, TableHeader, TableRow, TableHead, TableBody, TableCell, Separator } from '@/components/ui'
+import { $1, InfoHint } from '@/components/ui'
 import { toast } from 'sonner'
 import { Plus, Trash2, Save, RefreshCw, CheckCircle2, XCircle, Info } from 'lucide-react'
 
@@ -36,22 +35,16 @@ export default function AdminStoragePage() {
 
   useEffect(() => { fetchItems() }, [])
 
-  const Hint = ({ text }: { text: string }) => (
-    <span title={text} className="inline-flex items-center ml-1 align-middle cursor-help">
-      <Info className="h-3.5 w-3.5 text-gray-400" />
-    </span>
-  )
-
   const providerFields = (p: Provider) => {
     switch (p) {
       case 'LOCAL': return (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>publicPrefix<Hint text="URL 前缀。必须以 / 开头且不以 / 结尾。默认 /uploads。注意：项目的 next.config.ts 只配置了 /uploads → /api/uploads 的重写，如修改需同步修改 rewrites。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.publicPrefix||''} onChange={e=>setForm({...form, config:{...form.config, publicPrefix:e.target.value}})} placeholder="/uploads"/>
           </div>
           <div>
-            <Label>baseDir<Hint text="服务端保存文件的目录（相对项目根）。默认 uploads。应与 publicPrefix 对应，例如 publicPrefix=/uploads 则 baseDir=uploads。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.baseDir||''} onChange={e=>setForm({...form, config:{...form.config, baseDir:e.target.value}})} placeholder="uploads"/>
           </div>
         </div>
@@ -59,23 +52,23 @@ export default function AdminStoragePage() {
       case 'WEBDAV': return (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>baseUrl<Hint text="WebDAV 根地址，末尾不要带 /。例如 Nextcloud：https://cloud.example.com/remote.php/webdav；通用：https://dav.example.com/webdav。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.baseUrl||''} onChange={e=>setForm({...form, config:{...form.config, baseUrl:e.target.value}})} placeholder="https://dav.example.com/remote.php/webdav"/>
           </div>
           <div>
-            <Label>publicBaseUrl<Hint text="可选，对外匿名可访问的域名（如 CDN）。留空则与 baseUrl 相同；若外网不可匿名访问，建议留空，下载将通过服务端代理。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.publicBaseUrl||''} onChange={e=>setForm({...form, config:{...form.config, publicBaseUrl:e.target.value}})} placeholder="可选，默认等于 baseUrl"/>
           </div>
           <div>
-            <Label>username<Hint text="如 WebDAV 服务端启用认证，请填写用户名。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.username||''} onChange={e=>setForm({...form, config:{...form.config, username:e.target.value}})} />
           </div>
           <div>
-            <Label>password<Hint text="如 WebDAV 服务端启用认证，请填写密码。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input type="password" value={form.config?.password||''} onChange={e=>setForm({...form, config:{...form.config, password:e.target.value}})} />
           </div>
           <div>
-            <Label>rootPath<Hint text="仓库内子目录（可选）。不要以 / 开头或结尾，示例 hotupdates。最终路径：baseUrl/rootPath/{projectId}/{file}。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.rootPath||''} onChange={e=>setForm({...form, config:{...form.config, rootPath:e.target.value}})} placeholder="/hotupdates"/>
           </div>
         </div>
@@ -83,27 +76,27 @@ export default function AdminStoragePage() {
       case 'S3': return (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>region<Hint text="AWS：真实区域（如 ap-northeast-1）。S3 兼容（MinIO/Bitiful/R2）：常用 us-east-1 或服务要求值。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.region||''} onChange={e=>setForm({...form, config:{...form.config, region:e.target.value}})} placeholder="us-east-1"/>
           </div>
           <div>
-            <Label>bucket<Hint text="存储桶名称，例如 my-bucket。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.bucket||''} onChange={e=>setForm({...form, config:{...form.config, bucket:e.target.value}})} />
           </div>
           <div>
-            <Label>accessKeyId<Hint text="访问密钥 ID。建议使用最小权限的密钥。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.accessKeyId||''} onChange={e=>setForm({...form, config:{...form.config, accessKeyId:e.target.value}})} />
           </div>
           <div>
-            <Label>secretAccessKey<Hint text="访问密钥 Secret。注意保护，不要泄露。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input type="password" value={form.config?.secretAccessKey||''} onChange={e=>setForm({...form, config:{...form.config, secretAccessKey:e.target.value}})} />
           </div>
           <div>
-            <Label>endpoint<Hint text="S3 兼容服务必填（如 MinIO/Bitiful），例如 https://s3.bitiful.net；AWS 官方可留空。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.endpoint||''} onChange={e=>setForm({...form, config:{...form.config, endpoint:e.target.value}})} placeholder="可选"/>
           </div>
           <div>
-            <Label>publicBaseUrl<Hint text="可选，公开/CDN 域名。桶私有时留空，下载将通过服务端预签名。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.publicBaseUrl||''} onChange={e=>setForm({...form, config:{...form.config, publicBaseUrl:e.target.value}})} placeholder="可选"/>
           </div>
         </div>
@@ -111,27 +104,27 @@ export default function AdminStoragePage() {
       case 'OSS': return (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>region<Hint text="OSS 区域，例如 cn-hangzhou。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.region||''} onChange={e=>setForm({...form, config:{...form.config, region:e.target.value}})} placeholder="cn-hangzhou"/>
           </div>
           <div>
-            <Label>bucket<Hint text="Bucket 名称，例如 my-oss-bucket。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.bucket||''} onChange={e=>setForm({...form, config:{...form.config, bucket:e.target.value}})} />
           </div>
           <div>
-            <Label>accessKeyId<Hint text="访问密钥 ID。建议使用最小权限的密钥。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.accessKeyId||''} onChange={e=>setForm({...form, config:{...form.config, accessKeyId:e.target.value}})} />
           </div>
           <div>
-            <Label>accessKeySecret<Hint text="访问密钥 Secret。注意保护，不要泄露。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input type="password" value={form.config?.accessKeySecret||''} onChange={e=>setForm({...form, config:{...form.config, accessKeySecret:e.target.value}})} />
           </div>
           <div>
-            <Label>endpoint<Hint text="可选，自定义域名或内网地址。留空使用官方域名。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.endpoint||''} onChange={e=>setForm({...form, config:{...form.config, endpoint:e.target.value}})} placeholder="可选"/>
           </div>
           <div>
-            <Label>publicBaseUrl<Hint text="可选，公开/CDN 域名。桶私有时留空，下载将通过服务端预签名。"/></Label>
+            <Label>$1<InfoHint text="$2" \/><\/Label>
             <Input value={form.config?.publicBaseUrl||''} onChange={e=>setForm({...form, config:{...form.config, publicBaseUrl:e.target.value}})} placeholder="可选"/>
           </div>
         </div>
@@ -218,11 +211,11 @@ export default function AdminStoragePage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>名称<Hint text="自定义显示名称，用于在页面中区分不同存储配置。"/></Label>
+                <Label>$1<InfoHint text="$2" \/><\/Label>
                 <Input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
               </div>
               <div>
-                <Label>Provider<Hint text="存储类型：LOCAL/WEBDAV/S3/OSS。选择后按下方字段填写对应配置。"/></Label>
+                <Label>$1<InfoHint text="$2" \/><\/Label>
                 <select className="border rounded h-10 px-2 w-full" value={form.provider} onChange={e=>setForm({...form, provider:e.target.value as Provider})}>
                   <option value="LOCAL">LOCAL</option>
                   <option value="WEBDAV">WEBDAV</option>
