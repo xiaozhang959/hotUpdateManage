@@ -46,7 +46,7 @@ export default function ProfileStoragePage() {
             <div>
               <Label>baseDir 子目录<InfoHint text="可选，位于 uploads 下的子目录名称（相对路径，不要以 / 开头或结尾）。例如填写 ddd，则文件将存储在 uploads/ddd/...。留空表示直接存储在 uploads/...。" /></Label>
               <Input value={form.config?.baseDir||''} onChange={e=>setForm({...form, config:{...form.config, baseDir:e.target.value}})} placeholder="例如 ddd 或留空"/>
-              <p className="text-xs text-gray-500 mt-1">实际存储路径将是 <code>/uploads/{'{baseDir?'}/{'{baseDir}'}{' : ''}</code>；即所有本地文件统一放在 <code>/uploads</code> 下，避免在项目根创建零散目录。</p>
+              <p className="text-xs text-gray-500 mt-1">实际存储路径位于 <code>/uploads</code> 下，例如 <code>/uploads/ddd/…</code>；避免在项目根创建零散目录。</p>
             </div>
           </div>
         )
@@ -74,9 +74,9 @@ export default function ProfileStoragePage() {
               <p className="text-xs text-gray-500 mt-1">如服务端需认证，请填写密码。</p>
             </div>
             <div>
-              <Label>rootPath<InfoHint text="仓库子目录（可选）。不要以 / 开头或结尾，例如 hotupdates。最终路径：baseUrl/rootPath/{'{projectId}'}/{'{file}'}。" /></Label>
+              <Label>rootPath<InfoHint text="仓库子目录（可选）。不要以 / 开头或结尾，例如 hotupdates。最终路径：baseUrl/rootPath/<code>{'{projectId}'}</code>/<code>{'{file}'}</code>。" /></Label>
               <Input value={form.config?.rootPath||''} onChange={e=>setForm({...form, config:{...form.config, rootPath:e.target.value}})} placeholder="/hotupdates"/>
-              <p className="text-xs text-gray-500 mt-1">可选，仓库内子目录。不要以 / 开头或结尾，示例：hotupdates。最终路径：baseUrl/rootPath/{'{projectId}'}/{'{file}'}。</p>
+              <p className="text-xs text-gray-500 mt-1">可选，仓库内子目录。不要以 / 开头或结尾，示例：hotupdates。最终路径：baseUrl/rootPath/<code>{'{projectId}'}</code>/<code>{'{file}'}</code>。</p>
             </div>
           </div>
         )
