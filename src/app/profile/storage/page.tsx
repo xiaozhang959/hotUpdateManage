@@ -43,9 +43,9 @@ export default function ProfileStoragePage() {
             <p className="text-xs text-gray-500 mt-1">必须以 / 开头且不以 / 结尾。默认 /uploads。注意：next.config.ts 仅重写 /uploads → /api/uploads，如改前缀需同步修改 rewrite。</p>
           </div>
           <div>
-            <Label>baseDir</Label>
-            <Input value={form.config?.baseDir||''} onChange={e=>setForm({...form, config:{...form.config, baseDir:e.target.value}})} placeholder="uploads"/>
-            <p className="text-xs text-gray-500 mt-1">服务端本地目录（相对项目根）。默认 uploads。与 publicPrefix 对应。</p>
+            <Label>baseDir 子目录</Label>
+            <Input value={form.config?.baseDir||''} onChange={e=>setForm({...form, config:{...form.config, baseDir:e.target.value}})} placeholder="例如 ddd 或留空"/>
+            <p className="text-xs text-gray-500 mt-1">实际存储路径将是 <code>/uploads/{'{baseDir?'}/{'{baseDir}'}{' : ''}</code>；即所有本地文件统一放在 <code>/uploads</code> 下，避免在项目根创建零散目录。</p>
           </div>
         </div>
       )

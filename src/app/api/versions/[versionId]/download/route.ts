@@ -130,6 +130,10 @@ export async function GET(
           } catch {}
         }
       }
+      // 物理根目录固定为 uploads，baseDir 为其下子目录（兼容 legacy 路径）
+      const subDir = sanitizeSegment(baseDir)
+      const uploadsRoot = path.join(process.cwd(), 'uploads')
+      const physicalBase = subDir && subDir.toLowerCase() !== 'uploads' ? path.join(uploadsRoot, subDir) : uploadsRoot
 
       let key = objKey
       if (!key) {
@@ -142,11 +146,15 @@ export async function GET(
       if (!safe) {
         return new Response(JSON.stringify({ error: '非法对象键' }), { status: 400 })
       }
-      const filePath = path.join(process.cwd(), baseDir, safe.projectId, safe.fileName)
-      const uploadsRoot = path.join(process.cwd(), baseDir)
+      const primaryPath = path.join(physicalBase, safe.projectId, safe.fileName)
+      const legacyRoot = path.join(process.cwd(), baseDir)
+      const legacyPath = path.join(legacyRoot, safe.projectId, safe.fileName)
+      const filePath = existsSync(primaryPath) ? primaryPath : legacyPath
       // 目录穿越保护
       const resolved = path.resolve(filePath)
-      if (!resolved.startsWith(path.resolve(uploadsRoot))) {
+      const allowedRoot = path.resolve(uploadsRoot)
+      const allowedLegacy = path.resolve(legacyRoot)
+      if (!resolved.startsWith(allowedRoot) && !resolved.startsWith(allowedLegacy)) {
         return new Response(JSON.stringify({ error: '路径越界' }), { status: 400 })
       }
       if (!existsSync(resolved)) {
@@ -226,6 +234,10 @@ function deriveLocalObjectKeyFromUrl(u?: string, publicPrefix?: string): string 
     if (m) return `${m[1]}/${m[2]}`
     return null
   } catch { return null }
+}
+
+function sanitizeSegment(s?: string) {
+  return (s || '').replace(/[\\/]/g, '').trim()
 }
 
 function parseLocalObjectKey(objectKey: string): { projectId: string; fileName: string } | null {

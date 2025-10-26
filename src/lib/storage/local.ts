@@ -11,10 +11,19 @@ const defaultCfg: Required<Pick<LocalConfig, 'publicPrefix' | 'baseDir'>> = {
 
 export function createLocalProvider(cfg?: LocalConfig): StorageProvider {
   const config = { ...defaultCfg, ...(cfg || {}) }
+  const sanitize = (s?: string) => (s || '').replace(/[\\/]/g, '').trim()
+  // 将所有本地文件统一归档到 uploads 根目录下；baseDir 作为其下的子目录（可为空）
+  const subDir = (() => {
+    const sd = sanitize(config.baseDir)
+    if (!sd || sd.toLowerCase() === 'uploads') return ''
+    return sd
+  })()
+  const uploadsRoot = path.join(process.cwd(), 'uploads')
+  const physicalBaseDir = subDir ? path.join(uploadsRoot, subDir) : uploadsRoot
   return {
     name: 'LOCAL',
     async putObject({ projectId, fileName, buffer }: PutParams): Promise<PutResult> {
-      const uploadDir = path.join(process.cwd(), config.baseDir, projectId)
+      const uploadDir = path.join(physicalBaseDir, projectId)
       if (!existsSync(uploadDir)) {
         await mkdir(uploadDir, { recursive: true })
       }
@@ -33,7 +42,10 @@ export function createLocalProvider(cfg?: LocalConfig): StorageProvider {
         const parts = objectKey.split('/')
         const encName = parts[1] || ''
         const fileName = decodeURIComponent(encName)
-        const filePath = path.join(process.cwd(), config.baseDir, projectId, fileName)
+        // 优先新规范路径（uploads[/subDir]/projectId/fileName）
+        const primary = path.join(physicalBaseDir, projectId, fileName)
+        const legacy = path.join(process.cwd(), config.baseDir, projectId, fileName)
+        const filePath = existsSync(primary) ? primary : legacy
         const { unlink } = await import('fs/promises')
         await unlink(filePath)
         return true
