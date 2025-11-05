@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createHash } from 'crypto'
 import { resolveSizeForUrl } from '@/lib/remote-md5'
+import { withSerializedSize } from '@/lib/server/serialize'
 
 // 添加新版本（管理员）
 export async function POST(
@@ -67,7 +68,7 @@ export async function POST(
         version,
         downloadUrl: primaryUrl, // 主链接，用于向后兼容
         downloadUrls: JSON.stringify(urls), // 存储所有链接
-        size: fileSizeBytes,
+        size: fileSizeBytes != null ? BigInt(fileSizeBytes) : null,
         md5: finalMd5,
         changelog: changelog || '',
         forceUpdate: forceUpdate || false,
@@ -98,7 +99,7 @@ export async function POST(
     return NextResponse.json({
       message: '版本创建成功',
       version: {
-        ...newVersion,
+        ...withSerializedSize(newVersion),
         timestamp: new Date(newVersion.createdAt).getTime() // 添加时间戳
       }
     })

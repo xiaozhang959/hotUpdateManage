@@ -201,9 +201,13 @@ export async function PUT(
       where: { id: versionId }
     })
 
+    // BigInt -> JSON safe
+    const size = (updatedVersion as any)?.size
+    const sizeSerialized = typeof size === 'bigint' ? (size <= BigInt(Number.MAX_SAFE_INTEGER) && size >= BigInt(Number.MIN_SAFE_INTEGER) ? Number(size) : size.toString()) : size ?? null
+
     return NextResponse.json({
       message: '版本更新成功',
-      version: updatedVersion
+      version: { ...updatedVersion, size: sizeSerialized }
     })
   } catch (error) {
     console.error('更新版本失败:', error)

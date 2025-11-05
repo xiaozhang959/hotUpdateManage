@@ -3,6 +3,7 @@ import { validateBearerToken, validateApiKey } from '@/lib/auth-bearer'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import { resolveMd5ForUrl, isUploadsUrl, resolveSizeForUrl } from '@/lib/remote-md5'
+import { withSerializedSize } from '@/lib/server/serialize'
 import { getConfig } from '@/lib/system-config'
 import { getActiveStorageProvider } from '@/lib/storage'
 // Keep encoding strictly for local file uploads; do not encode user-provided links
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
 
     // 为每个版本添加时间戳
     const versionsWithTimestamp = versions.map(v => ({
-      ...v,
+      ...withSerializedSize(v),
       timestamp: new Date(v.createdAt).getTime()
     }))
 
@@ -251,7 +252,7 @@ export async function POST(req: NextRequest) {
         version,
         downloadUrl,
         downloadUrls: JSON.stringify(downloadUrls),
-        size: fileSizeBytes,
+        size: fileSizeBytes != null ? BigInt(fileSizeBytes) : null,
         md5,
         md5Source,
         storageProvider: providerName,
@@ -282,7 +283,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        ...newVersion,
+        ...withSerializedSize(newVersion),
         timestamp: new Date(newVersion.createdAt).getTime() // 添加时间戳
       },
       message: 'Version created successfully'

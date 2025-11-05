@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { safeNumberFromBigInt } from '@/lib/server/serialize'
 import { validateBearerToken } from '@/lib/auth-bearer'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
         version: version.version,
         downloadUrl: selected, // 仅返回相对路径或原始外链
         md5: version.md5,
-        size: (version as any).size ?? null,
+        size: safeNumberFromBigInt((version as any).size ?? null as any),
         forceUpdate: version.forceUpdate,
         changelog: version.changelog,
         createdAt: version.createdAt,

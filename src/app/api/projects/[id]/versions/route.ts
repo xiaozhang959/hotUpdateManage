@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { createHash } from 'crypto'
 import { versionCache } from '@/lib/cache/version-cache'
 import { resolveMd5ForUrl, isUploadsUrl, resolveSizeForUrl } from '@/lib/remote-md5'
+import { withSerializedSize } from '@/lib/server/serialize'
 import { getConfig } from '@/lib/system-config'
 
 // 获取项目的所有版本
@@ -40,9 +41,9 @@ export async function GET(
       }
     })
 
-    // 为每个版本添加时间戳字段
+    // 为每个版本添加时间戳字段并序列化 BigInt
     const versionsWithTimestamp = versions.map(v => ({
-      ...v,
+      ...withSerializedSize(v),
       timestamp: new Date(v.createdAt).getTime()
     }))
 
@@ -171,7 +172,7 @@ export async function POST(
           version,
           downloadUrl: primaryUrl, // 主链接，用于向后兼容
           downloadUrls: JSON.stringify(urls), // 存储所有链接
-          size: fileSizeBytes,
+          size: fileSizeBytes != null ? BigInt(fileSizeBytes) : null,
           md5: md5Hash!,
           md5Source,
           storageProvider: storageProvider || null,
@@ -201,7 +202,7 @@ export async function POST(
 
     // 返回带时间戳的版本信息
     return NextResponse.json({
-      ...newVersion,
+      ...withSerializedSize(newVersion),
       timestamp: new Date(newVersion.createdAt).getTime()
     })
   } catch (error) {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { withSerializedSize } from '@/lib/server/serialize'
 import { deleteFiles, deleteProjectUploadDir } from '@/lib/fileUtils'
 
 // 获取项目详情
@@ -34,7 +35,11 @@ export async function GET(
       return NextResponse.json({ error: '项目不存在' }, { status: 404 })
     }
 
-    return NextResponse.json(project)
+    const serialized = project && {
+      ...project,
+      versions: project.versions.map((v: any) => withSerializedSize(v))
+    }
+    return NextResponse.json(serialized)
   } catch (error) {
     console.error('获取项目详情失败:', error)
     return NextResponse.json(

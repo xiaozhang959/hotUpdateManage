@@ -93,7 +93,7 @@ interface Version {
   id: string
   version: string
   downloadUrl: string
-  size?: number | null
+  size?: number | string | null
   md5: string
   forceUpdate: boolean
   changelog: string
@@ -128,6 +128,13 @@ interface Stats {
 }
 
 export default function AdminPage() {
+  const formatSizeKB = (v: number | string | null | undefined) => {
+    if (v === null || v === undefined) return '未知大小'
+    const n = typeof v === 'string' ? parseInt(v, 10) : v
+    if (!Number.isFinite(n)) return '未知大小'
+    const kb = Math.ceil((n as number) / 1024)
+    return `${kb} KB`
+  }
   const [users, setUsers] = useState<User[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -1225,10 +1232,11 @@ export default function AdminPage() {
                           <TableRow>
                             <TableHead>版本号</TableHead>
                             <TableHead>状态</TableHead>
-                            <TableHead>强制更新</TableHead>
-                            <TableHead>更新说明</TableHead>
-                            <TableHead>创建时间</TableHead>
-                            <TableHead>操作</TableHead>
+                          <TableHead>强制更新</TableHead>
+                          <TableHead>大小</TableHead>
+                          <TableHead>更新说明</TableHead>
+                          <TableHead>创建时间</TableHead>
+                          <TableHead>操作</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1255,13 +1263,16 @@ export default function AdminPage() {
                                   </Badge>
                                 ) : (
                                   <Badge variant="outline">可选</Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="max-w-xs">
-                                <p className="truncate text-sm" title={version.changelog}>
-                                  {version.changelog}
-                                </p>
-                              </TableCell>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-gray-600">{formatSizeKB(version.size ?? null)}</span>
+                            </TableCell>
+                            <TableCell className="max-w-xs">
+                              <p className="truncate text-sm" title={version.changelog}>
+                                {version.changelog}
+                              </p>
+                            </TableCell>
                               <TableCell>
                                 <span className="text-sm text-gray-500">
                                   {new Date(version.createdAt).toLocaleDateString()}
@@ -1516,10 +1527,11 @@ export default function AdminPage() {
                           <TableRow>
                             <TableHead>版本号</TableHead>
                             <TableHead>状态</TableHead>
-                            <TableHead>强制更新</TableHead>
-                            <TableHead>更新说明</TableHead>
-                            <TableHead>创建时间</TableHead>
-                            <TableHead>操作</TableHead>
+                          <TableHead>强制更新</TableHead>
+                          <TableHead>大小</TableHead>
+                          <TableHead>更新说明</TableHead>
+                          <TableHead>创建时间</TableHead>
+                          <TableHead>操作</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1542,6 +1554,9 @@ export default function AdminPage() {
                                 ) : (
                                   <Badge variant="outline">可选</Badge>
                                 )}
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-gray-600">{formatSizeKB(version.size ?? null)}</span>
                               </TableCell>
                               <TableCell className="max-w-xs">
                                 <p className="truncate text-sm">{version.changelog}</p>

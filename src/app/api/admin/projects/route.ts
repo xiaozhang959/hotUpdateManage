@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { withSerializedSize } from '@/lib/server/serialize'
 
 // 获取所有项目（仅管理员）
 export async function GET() {
@@ -37,7 +38,12 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json(projects)
+    // 序列化 BigInt 大小字段
+    const serialized = projects.map((p) => ({
+      ...p,
+      versions: p.versions.map((v: any) => withSerializedSize(v)),
+    }))
+    return NextResponse.json(serialized)
   } catch (error) {
     console.error('获取项目列表失败:', error)
     return NextResponse.json(
