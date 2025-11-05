@@ -645,6 +645,14 @@ export default function ProjectVersionsPage() {
     return byVersion && afterStart && beforeEnd
   })
 
+  const formatSizeKB = (v: number | string | null | undefined) => {
+    if (v === null || v === undefined) return '未知大小'
+    const n = typeof v === 'string' ? parseInt(v, 10) : v
+    if (!Number.isFinite(n)) return '未知大小'
+    const kb = Math.ceil((n as number) / 1024)
+    return `${kb} KB`
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
       <main className="container mx-auto px-4 py-8 flex-1 min-h-[calc(100vh-200px)]">
@@ -1007,6 +1015,7 @@ export default function ProjectVersionsPage() {
                     <TableRow>
                       <TableHead>版本</TableHead>
                       <TableHead>下载</TableHead>
+                      <TableHead>大小</TableHead>
                       <TableHead>MD5</TableHead>
                       <TableHead>强制</TableHead>
                       <TableHead>创建时间</TableHead>
@@ -1091,6 +1100,9 @@ export default function ProjectVersionsPage() {
                                 </div>
                               )
                             })()}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-gray-600">{formatSizeKB((v as any).size ?? null)}</span>
                           </TableCell>
                           <TableCell className="font-mono text-xs">
                             {v.md5 || <span className="text-gray-400">-</span>}
