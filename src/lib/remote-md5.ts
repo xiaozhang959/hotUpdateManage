@@ -153,3 +153,56 @@ export async function resolveMd5ForUrl(url: string, sizeLimitBytes = 100 * 1024 
   return null
 }
 
+/**
+ * 解析远程/本地文件大小（字节）。
+ * - 本地 `/uploads/*`：直接使用 fs.stat.size
+ * - 远程：优先 HEAD 的 `content-length`
+ * - 兜底：使用 `Range: bytes=0-0` 获取 `content-range` 的总长度
+ */
+export async function resolveSizeForUrl(url: string, timeoutMs = 8000): Promise<number | null> {
+  // 本地上传：直接读取文件大小
+  if (isUploadsUrl(url)) {
+    const p = getLocalUploadsPathFromUrl(url)
+    if (p && existsSync(p)) {
+      try {
+        const st = await stat(p)
+        if (st.isFile()) return Number(st.size)
+      } catch {}
+    }
+  }
+
+  // 远程：HEAD 优先
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const head = await fetch(url, { method: 'HEAD', signal: controller.signal as any })
+    if (head.ok) {
+      const len = head.headers.get('content-length')
+      const n = len ? Number(len) : NaN
+      if (!Number.isNaN(n) && n > 0) return n
+    }
+  } catch {}
+  finally {
+    clearTimeout(timer)
+  }
+
+  // 兜底：Range 探测
+  const controller2 = new AbortController()
+  const timer2 = setTimeout(() => controller2.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' }, signal: controller2.signal as any })
+    if (res.status === 206) {
+      const cr = res.headers.get('content-range') || '' // e.g. bytes 0-0/12345
+      const m = /\/(\d+)$/.exec(cr)
+      if (m && m[1]) {
+        const total = Number(m[1])
+        if (!Number.isNaN(total) && total >= 1) return total
+      }
+    }
+  } catch {}
+  finally {
+    clearTimeout(timer2)
+  }
+
+  return null
+}

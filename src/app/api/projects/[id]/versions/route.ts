@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createHash } from 'crypto'
 import { versionCache } from '@/lib/cache/version-cache'
-import { resolveMd5ForUrl, isUploadsUrl } from '@/lib/remote-md5'
+import { resolveMd5ForUrl, isUploadsUrl, resolveSizeForUrl } from '@/lib/remote-md5'
 import { getConfig } from '@/lib/system-config'
 
 // 获取项目的所有版本
@@ -82,6 +82,7 @@ export async function POST(
     }
 
     const { version, downloadUrl, downloadUrls, changelog, forceUpdate, md5: providedMd5, storageProvider, objectKey, storageConfigId, storageProviders } = await req.json()
+    let fileSizeBytes: number | null = null
 
     // 兼容性处理：如果提供了downloadUrls数组，使用它；否则使用单个downloadUrl
     const urls = downloadUrls && downloadUrls.length > 0 ? downloadUrls : [downloadUrl]
@@ -93,6 +94,9 @@ export async function POST(
         { status: 400 }
       )
     }
+
+    // 解析主链接的文件大小（本地/uploads 与远程URL都支持）
+    try { fileSizeBytes = await resolveSizeForUrl(primaryUrl) } catch {}
 
     // 检查版本号是否已存在
     const existingVersion = await prisma.version.findUnique({
@@ -167,6 +171,7 @@ export async function POST(
           version,
           downloadUrl: primaryUrl, // 主链接，用于向后兼容
           downloadUrls: JSON.stringify(urls), // 存储所有链接
+          size: fileSizeBytes,
           md5: md5Hash!,
           md5Source,
           storageProvider: storageProvider || null,

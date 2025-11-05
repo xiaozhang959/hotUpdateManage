@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createHash } from 'crypto'
+import { resolveSizeForUrl } from '@/lib/remote-md5'
 
 // 添加新版本（管理员）
 export async function POST(
@@ -17,6 +18,7 @@ export async function POST(
     }
 
     const { version, downloadUrl, downloadUrls, changelog, forceUpdate, md5 } = await req.json()
+    let fileSizeBytes: number | null = null
 
     // 兼容性处理：如果提供了downloadUrls数组，使用它；否则使用单个downloadUrl
     const urls = downloadUrls && downloadUrls.length > 0 ? downloadUrls : [downloadUrl]
@@ -53,6 +55,9 @@ export async function POST(
       )
     }
 
+    // 获取文件大小（尽力而为）
+    try { fileSizeBytes = await resolveSizeForUrl(primaryUrl) } catch {}
+
     // 使用传入的MD5或生成一个默认值
     const finalMd5 = md5 || createHash('md5').update(primaryUrl).digest('hex')
 
@@ -62,6 +67,7 @@ export async function POST(
         version,
         downloadUrl: primaryUrl, // 主链接，用于向后兼容
         downloadUrls: JSON.stringify(urls), // 存储所有链接
+        size: fileSizeBytes,
         md5: finalMd5,
         changelog: changelog || '',
         forceUpdate: forceUpdate || false,

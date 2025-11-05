@@ -79,6 +79,7 @@ interface Version {
   version: string
   downloadUrl: string
   downloadUrls?: string // JSON字符串，存储多个链接
+  size?: number | null
   md5: string
   md5Source?: string
   storageProvider?: string | null

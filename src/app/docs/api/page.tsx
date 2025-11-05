@@ -131,6 +131,7 @@ export default async function ApiDocsPage() {
   "data": {
     "version": "1.0.1",
     "downloadUrl": "https://example.com/app.apk",
+    "size": 12345678,
     "md5": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "forceUpdate": false,
     "changelog": "修复已知问题",
@@ -155,6 +156,7 @@ export default async function ApiDocsPage() {
   "data": {
     "version": "1.0.1",
     "downloadUrl": "https://example.com/app.apk",
+    "size": 12345678,
     "md5": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "forceUpdate": false,
     "changelog": "修复已知问题",

@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
         version: version.version,
         downloadUrl: selected, // 仅返回相对路径或原始外链
         md5: version.md5,
+        size: (version as any).size ?? null,
         forceUpdate: version.forceUpdate,
         changelog: version.changelog,
         createdAt: version.createdAt,
@@ -117,6 +118,7 @@ const baseSelect = {
   downloadUrls: true,
   urlRotationIndex: true,
   md5: true,
+  size: true,
   forceUpdate: true,
   changelog: true,
   isCurrent: true,
@@ -148,4 +150,3 @@ function isLinkType(storageProviders: any, index: number): boolean {
 }
 
 export const runtime = 'nodejs'
-

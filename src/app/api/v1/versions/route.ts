@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateBearerToken, validateApiKey } from '@/lib/auth-bearer'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
-import { resolveMd5ForUrl, isUploadsUrl } from '@/lib/remote-md5'
+import { resolveMd5ForUrl, isUploadsUrl, resolveSizeForUrl } from '@/lib/remote-md5'
 import { getConfig } from '@/lib/system-config'
 import { getActiveStorageProvider } from '@/lib/storage'
 // Keep encoding strictly for local file uploads; do not encode user-provided links
@@ -133,6 +133,7 @@ export async function POST(req: NextRequest) {
     let downloadUrls: string[] = []
     let md5: string = ''
     let md5Source: string = 'manual'
+    let fileSizeBytes: number | null = null
     // 为文件上传分支准备的外部可见变量，便于在后续写入数据库
     let put: any = null
     let providerName: string | null = null
@@ -164,6 +165,7 @@ export async function POST(req: NextRequest) {
       downloadUrls = [downloadUrl]
       md5 = put.md5
       md5Source = 'local'
+      fileSizeBytes = Number(file.size)
     } else if (urls) {
       // Handle multiple URLs (second priority)
       try {
@@ -174,6 +176,8 @@ export async function POST(req: NextRequest) {
         // Do NOT encode user-provided URLs; keep them exactly as submitted
         downloadUrls = parsedUrls
         downloadUrl = downloadUrls[0]
+        // 解析主链接的文件大小
+        try { fileSizeBytes = await resolveSizeForUrl(downloadUrl) } catch {}
         if (providedMd5) {
           if (requireMd5 && !isHexMd5(providedMd5)) {
             return NextResponse.json({ error: '已开启强制校验：请提供有效的32位十六进制MD5' }, { status: 400 })
@@ -208,6 +212,8 @@ export async function POST(req: NextRequest) {
       // Do NOT encode user-provided URL; keep it exactly as submitted
       downloadUrl = url
       downloadUrls = [downloadUrl]
+      // 解析主链接的文件大小
+      try { fileSizeBytes = await resolveSizeForUrl(downloadUrl) } catch {}
       if (providedMd5) {
         if (requireMd5 && !isHexMd5(providedMd5)) {
           return NextResponse.json({ error: '已开启强制校验：请提供有效的32位十六进制MD5' }, { status: 400 })
@@ -245,6 +251,7 @@ export async function POST(req: NextRequest) {
         version,
         downloadUrl,
         downloadUrls: JSON.stringify(downloadUrls),
+        size: fileSizeBytes,
         md5,
         md5Source,
         storageProvider: providerName,

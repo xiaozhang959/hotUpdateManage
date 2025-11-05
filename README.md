@@ -407,6 +407,7 @@ fetch('https://your-domain.com/api/versions/latest', {
   "data": {
     "version": "1.2.0",
     "downloadUrl": "https://cdn.example.com/app-v1.2.0.apk",
+    "size": 12345678,
     "downloadUrls": [
       "https://cdn1.example.com/app-v1.2.0.apk",
       "https://cdn2.example.com/app-v1.2.0.apk"

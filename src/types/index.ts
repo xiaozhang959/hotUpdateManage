@@ -29,6 +29,7 @@ export interface Version {
   project?: Project;
   version: string;
   downloadUrl: string;
+  size?: number | null;
   md5: string;
   forceUpdate: boolean;
   changelog: string;

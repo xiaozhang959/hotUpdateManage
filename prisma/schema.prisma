@@ -50,6 +50,7 @@ model Version {
   downloadUrl      String // 保持向后兼容，存储第一个链接
   downloadUrls     String         @default("[]") // JSON数组存储多个链接
   urlRotationIndex Int            @default(0) // 轮询索引，记录当前返回的链接位置
+  size             Int?           // 文件大小（字节）。优先在上传/创建时计算，远程链接无法获取时为null
   md5              String
   md5Source        String         @default("manual") // local | etag | content-md5 | get-stream | manual | random
   storageProvider  String?
