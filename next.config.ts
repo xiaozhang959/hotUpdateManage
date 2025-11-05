@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // 向浏览器暴露统一时区（默认上海）
+  env: {
+    NEXT_PUBLIC_TZ: process.env.TZ || 'Asia/Shanghai',
+  },
   // 配置URL重写规则
   async rewrites() {
     return [

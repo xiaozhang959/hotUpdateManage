@@ -372,11 +372,11 @@ export function ProjectDetailDialog({
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-500">创建时间</span>
-                        <span className="text-sm">{new Date(project.createdAt).toLocaleDateString()}</span>
+                        <span className="text-sm">{new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai') }).format(new Date($1))}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-500">更新时间</span>
-                        <span className="text-sm">{new Date(project.updatedAt).toLocaleDateString()}</span>
+                        <span className="text-sm">{new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai') }).format(new Date($1))}</span>
                       </div>
                     </CardContent>
                   </Card>
@@ -504,7 +504,7 @@ export function ProjectDetailDialog({
                             </TableCell>
                             <TableCell>
                               <span className="text-sm text-gray-500">
-                                {new Date(version.createdAt).toLocaleDateString()}
+                                {new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai') }).format(new Date($1))}
                               </span>
                             </TableCell>
                             <TableCell>
@@ -784,9 +784,9 @@ export function ProjectDetailDialog({
             </div>
             {editingVersion && (
               <div className="text-xs text-gray-500 space-y-1">
-                <p>创建时间: {new Date(editingVersion.createdAt).toLocaleString()}</p>
+                <p>创建时间: {new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai'), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date($1))}</p>
                 {editingVersion.updatedAt && (
-                  <p>最后更新: {new Date(editingVersion.updatedAt).toLocaleString()}</p>
+                  <p>最后更新: {new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai'), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date($1))}</p>
                 )}
               </div>
             )}

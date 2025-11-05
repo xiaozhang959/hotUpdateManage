@@ -553,7 +553,7 @@ export default function ProjectsPage() {
                       <div className="flex items-center gap-4 text-sm">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          创建于 {new Date(project.createdAt).toLocaleDateString()}
+                          创建于 {new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai') }).format(new Date($1))}
                         </span>
                         <span className="flex items-center gap-1">
                           <Hash className="h-3 w-3" />
@@ -647,7 +647,7 @@ export default function ProjectsPage() {
                     <div className="text-sm text-gray-600 dark:text-gray-400">
                       最新版本: {project.versions[0].version}
                       <span className="ml-2 text-xs">
-                        ({new Date(project.versions[0].createdAt).toLocaleDateString()})
+                        ({new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai') }).format(new Date($1))})
                       </span>
                     </div>
                   )}

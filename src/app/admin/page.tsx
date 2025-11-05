@@ -77,6 +77,7 @@ import {
   Hash,
   ArrowUpDown,
 } from 'lucide-react'
+import { formatDate, formatDateTime } from '@/lib/timezone'
 
 interface User {
   id: string
@@ -692,7 +693,7 @@ export default function AdminPage() {
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm text-gray-500">
                           <Calendar className="h-3 w-3" />
-                          {new Date(user.createdAt).toLocaleDateString()}
+                          {formatDate($1)}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -860,7 +861,7 @@ export default function AdminPage() {
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm text-gray-500">
                           <Clock className="h-3 w-3" />
-                          {new Date(project.updatedAt).toLocaleDateString()}
+                          {formatDate($1)}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -1168,11 +1169,11 @@ export default function AdminPage() {
                     </div>
                     <div>
                       <Label className="text-xs text-gray-500">创建时间</Label>
-                      <p className="text-sm">{new Date(viewProject.createdAt).toLocaleString()}</p>
+                      <p className="text-sm">{formatDateTime($1)}</p>
                     </div>
                     <div>
                       <Label className="text-xs text-gray-500">更新时间</Label>
-                      <p className="text-sm">{new Date(viewProject.updatedAt).toLocaleString()}</p>
+                      <p className="text-sm">{formatDateTime($1)}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -1277,7 +1278,7 @@ export default function AdminPage() {
                             </TableCell>
                               <TableCell>
                                 <span className="text-sm text-gray-500">
-                                  {new Date(version.createdAt).toLocaleDateString()}
+                                  {formatDate($1)}
                                 </span>
                               </TableCell>
                               <TableCell>
@@ -1565,7 +1566,7 @@ export default function AdminPage() {
                               </TableCell>
                               <TableCell>
                                 <span className="text-sm text-gray-500">
-                                  {new Date(version.createdAt).toLocaleDateString()}
+                                  {formatDate($1)}
                                 </span>
                               </TableCell>
                               <TableCell>

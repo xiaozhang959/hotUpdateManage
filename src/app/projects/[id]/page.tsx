@@ -1111,7 +1111,7 @@ export default function ProjectVersionsPage() {
                             {v.forceUpdate ? '是' : '否'}
                           </TableCell>
                           <TableCell>
-                            {new Date(v.createdAt).toLocaleString()}
+                            {new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai'), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date($1))}
                           </TableCell>
                           <TableCell className="text-right space-x-1">
                             <Button
@@ -1451,9 +1451,9 @@ export default function ProjectVersionsPage() {
               
               {editingVersion && (
                 <div className="text-xs text-gray-500 space-y-1">
-                  <p>创建时间: {new Date(editingVersion.createdAt).toLocaleString()}</p>
+                  <p>创建时间: {new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai'), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date($1))}</p>
                   {editingVersion.updatedAt && (
-                    <p>最后更新: {new Date(editingVersion.updatedAt).toLocaleString()}</p>
+                    <p>最后更新: {new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai'), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date($1))}</p>
                   )}
                 </div>
               )}

@@ -315,7 +315,7 @@ export default function ProfilePage() {
                 </div>
                 {tokenCreatedAt && (
                   <p className="text-sm text-gray-500">
-                    创建时间: {tokenCreatedAt.toLocaleDateString('zh-CN')}
+                    创建时间: {tokenCreatedAt.Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai') }).format(tokenCreatedAt)}
                   </p>
                 )}
               </div>
