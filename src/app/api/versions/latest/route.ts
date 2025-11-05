@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { safeNumberFromBigInt } from '@/lib/server/serialize'
 import { validateBearerToken } from '@/lib/auth-bearer'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { versionCache } from '@/lib/cache/version-cache'
 
 export async function POST(req: NextRequest) {
   try {
@@ -60,6 +61,44 @@ export async function POST(req: NextRequest) {
 
     if (!project) {
       return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 })
+    }
+
+    // 优先尝试缓存 latest
+    const cached = await versionCache.getCachedVersion(project.id, 'latest')
+    if (cached) {
+      const urls = Array.isArray(cached.downloadUrls) ? cached.downloadUrls : []
+      let selected = cached.downloadUrl
+      let idx = 0
+      if (urls.length > 0 && cached.id) {
+        try {
+          const rot = await versionCache.getNextRotationUrl(cached.id, urls)
+          selected = rot.url
+          const found = urls.indexOf(selected)
+          idx = found >= 0 ? found : 0
+        } catch {
+          selected = urls[0]
+          idx = 0
+        }
+      }
+      const providersRaw = (cached as any)._providers || '[]'
+      if (!isLinkType(providersRaw, idx)) {
+        selected = `/api/versions/${cached.id}/download?i=${idx}`
+      }
+      return NextResponse.json({
+        success: true,
+        data: {
+          version: cached.version,
+          downloadUrl: selected,
+          md5: cached.md5,
+          size: cached.size ?? null,
+          forceUpdate: cached.forceUpdate,
+          changelog: cached.changelog,
+          createdAt: cached.createdAt as any,
+          updatedAt: cached.updatedAt as any,
+          timestamp: (cached.updatedAt ? new Date(cached.updatedAt as any) : new Date(cached.createdAt as any)).getTime(),
+          isCurrent: true,
+        },
+      })
     }
 
     // 读取当前版本（优先 currentVersion，其次按时间最新）

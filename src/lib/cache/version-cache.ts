@@ -8,6 +8,7 @@ interface CachedVersion {
   version: string;
   downloadUrl: string;
   downloadUrls?: string[];
+  size?: number | string | null;
   md5: string | null;
   forceUpdate: boolean;
   changelog: string | null;
@@ -208,11 +209,14 @@ class VersionCacheManager {
    * 预热缓存
    */
   async warmupCache(projectId: string, version: Version): Promise<void> {
+    const size = (version as any).size
+    const sizeSerialized = typeof size === 'bigint' ? (size <= BigInt(Number.MAX_SAFE_INTEGER) && size >= BigInt(Number.MIN_SAFE_INTEGER) ? Number(size) : size.toString()) : (typeof size === 'number' ? size : null)
     const cachedVersion: CachedVersion = {
       id: version.id,
       version: version.version,
       downloadUrl: version.downloadUrl,
       downloadUrls: version.downloadUrls ? JSON.parse(version.downloadUrls) : undefined,
+      size: sizeSerialized,
       md5: version.md5,
       forceUpdate: version.forceUpdate,
       changelog: version.changelog,

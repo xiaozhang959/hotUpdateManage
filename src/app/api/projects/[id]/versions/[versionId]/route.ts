@@ -201,6 +201,11 @@ export async function PUT(
       where: { id: versionId }
     })
 
+    // 若更新后的版本为当前版本，则预热缓存，确保 size 与字段同步
+    if (updatedVersion?.isCurrent || project.currentVersion === updatedVersion?.version) {
+      try { await versionCache.warmupCache(id, updatedVersion as any) } catch {}
+    }
+
     // BigInt -> JSON safe
     const size = (updatedVersion as any)?.size
     const sizeSerialized = typeof size === 'bigint' ? (size <= BigInt(Number.MAX_SAFE_INTEGER) && size >= BigInt(Number.MIN_SAFE_INTEGER) ? Number(size) : size.toString()) : size ?? null
