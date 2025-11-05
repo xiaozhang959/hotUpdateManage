@@ -90,6 +90,8 @@ export async function POST(req: NextRequest) {
     const url = formData.get('url') as string | null
     const urls = formData.get('urls') as string | null
     const providedMd5 = (formData.get('md5') as string | null)?.toString().trim() || ''
+    const providedSizeRaw = (formData.get('size') as string | null) || ''
+    const providedSize = providedSizeRaw ? Number(providedSizeRaw) : NaN
 
     if (!projectId || !version) {
       return NextResponse.json(
@@ -166,7 +168,8 @@ export async function POST(req: NextRequest) {
       downloadUrls = [downloadUrl]
       md5 = put.md5
       md5Source = 'local'
-      fileSizeBytes = Number(file.size)
+      // 允许调用方显式提供 size（优先）
+      fileSizeBytes = Number.isFinite(providedSize) && providedSize > 0 ? providedSize : Number(file.size)
     } else if (urls) {
       // Handle multiple URLs (second priority)
       try {
@@ -177,8 +180,12 @@ export async function POST(req: NextRequest) {
         // Do NOT encode user-provided URLs; keep them exactly as submitted
         downloadUrls = parsedUrls
         downloadUrl = downloadUrls[0]
-        // 解析主链接的文件大小
-        try { fileSizeBytes = await resolveSizeForUrl(downloadUrl) } catch {}
+        // 解析主链接的文件大小（优先 providedSize）
+        if (Number.isFinite(providedSize) && providedSize > 0) {
+          fileSizeBytes = providedSize
+        } else {
+          try { fileSizeBytes = await resolveSizeForUrl(downloadUrl) } catch {}
+        }
         if (providedMd5) {
           if (requireMd5 && !isHexMd5(providedMd5)) {
             return NextResponse.json({ error: '已开启强制校验：请提供有效的32位十六进制MD5' }, { status: 400 })
@@ -213,8 +220,12 @@ export async function POST(req: NextRequest) {
       // Do NOT encode user-provided URL; keep it exactly as submitted
       downloadUrl = url
       downloadUrls = [downloadUrl]
-      // 解析主链接的文件大小
-      try { fileSizeBytes = await resolveSizeForUrl(downloadUrl) } catch {}
+      // 解析主链接的文件大小（优先 providedSize）
+      if (Number.isFinite(providedSize) && providedSize > 0) {
+        fileSizeBytes = providedSize
+      } else {
+        try { fileSizeBytes = await resolveSizeForUrl(downloadUrl) } catch {}
+      }
       if (providedMd5) {
         if (requireMd5 && !isHexMd5(providedMd5)) {
           return NextResponse.json({ error: '已开启强制校验：请提供有效的32位十六进制MD5' }, { status: 400 })

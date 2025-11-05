@@ -267,6 +267,7 @@ export default function ProjectVersionsPage() {
         var storageProvider = uploadResults[0]?.storageProvider
         var objectKey = uploadResults[0]?.objectKey
         var storageConfigId = uploadResults[0]?.storageConfigId
+        var uploadedSize = uploadResults[0]?.size as number | undefined
         // 记录每条链接的“类型+名称”用于 UI 展示
         storageProviders = uploadResults.map(r => {
           const type = r.storageProvider as string | undefined
@@ -303,6 +304,7 @@ export default function ProjectVersionsPage() {
           changelog: formData.changelog,
           forceUpdate: formData.forceUpdate,
           md5: md5,
+          size: typeof uploadedSize === 'number' ? uploadedSize : undefined,
           storageProvider: typeof storageProvider !== 'undefined' ? storageProvider : null,
           objectKey: typeof objectKey !== 'undefined' ? objectKey : null,
           storageConfigId: typeof storageConfigId !== 'undefined' ? storageConfigId : null,

@@ -82,7 +82,7 @@ export async function POST(
       return NextResponse.json({ error: '项目不存在' }, { status: 404 })
     }
 
-    const { version, downloadUrl, downloadUrls, changelog, forceUpdate, md5: providedMd5, storageProvider, objectKey, storageConfigId, storageProviders } = await req.json()
+    const { version, downloadUrl, downloadUrls, changelog, forceUpdate, md5: providedMd5, size: providedSize, storageProvider, objectKey, storageConfigId, storageProviders } = await req.json()
     let fileSizeBytes: number | null = null
 
     // 兼容性处理：如果提供了downloadUrls数组，使用它；否则使用单个downloadUrl
@@ -96,8 +96,12 @@ export async function POST(
       )
     }
 
-    // 解析主链接的文件大小（本地/uploads 与远程URL都支持）
-    try { fileSizeBytes = await resolveSizeForUrl(primaryUrl) } catch {}
+    // 解析主链接的文件大小（优先请求体提供的 size，其次自动探测）
+    if (Number.isFinite(Number(providedSize)) && Number(providedSize) > 0) {
+      fileSizeBytes = Number(providedSize)
+    } else {
+      try { fileSizeBytes = await resolveSizeForUrl(primaryUrl) } catch {}
+    }
 
     // 检查版本号是否已存在
     const existingVersion = await prisma.version.findUnique({

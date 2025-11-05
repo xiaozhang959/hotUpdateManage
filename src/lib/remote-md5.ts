@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { existsSync, createReadStream } from 'fs'
+import { existsSync, createReadStream, readdirSync } from 'fs'
 import { stat } from 'fs/promises'
 import path from 'path'
 
@@ -46,7 +46,20 @@ export function getLocalUploadsPathFromUrl(url: string): string | null {
     const projectId = parts[2]
     const encodedName = parts.slice(3).join('/') // support nested segments if any
     const fileName = decodeURIComponent(encodedName)
-    const full = path.join(process.cwd(), 'uploads', projectId, fileName)
+    const uploadsRoot = path.join(process.cwd(), 'uploads')
+    // 首选标准路径：uploads/projectId/file
+    let full = path.join(uploadsRoot, projectId, fileName)
+    if (existsSync(full)) return full
+    // 兼容 baseDir 子目录：uploads/<subDir>/projectId/file
+    try {
+      const entries = readdirSync(uploadsRoot, { withFileTypes: true })
+      for (const e of entries) {
+        if (e.isDirectory() && e.name.toLowerCase() !== projectId.toLowerCase()) {
+          const candidate = path.join(uploadsRoot, e.name, projectId, fileName)
+          if (existsSync(candidate)) return candidate
+        }
+      }
+    } catch {}
     return full
   } catch {
     return null

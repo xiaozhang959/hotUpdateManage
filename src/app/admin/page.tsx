@@ -458,6 +458,7 @@ export default function AdminPage() {
         // 仅存储相对路径，避免绑定到本机域名/IP
         downloadUrl = uploadResult.data.url
         md5 = uploadResult.data.md5
+        var uploadedSize = uploadResult.data.size as number | undefined
         setUploading(false)
       }
 
@@ -469,7 +470,8 @@ export default function AdminPage() {
           downloadUrl: downloadUrl,
           changelog: addVersionForm.changelog || '',
           forceUpdate: addVersionForm.forceUpdate,
-          md5: md5
+          md5: md5,
+          size: typeof uploadedSize === 'number' ? uploadedSize : undefined
         })
       })
 

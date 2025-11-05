@@ -18,7 +18,7 @@ export async function POST(
       return NextResponse.json({ error: '无权限访问' }, { status: 403 })
     }
 
-    const { version, downloadUrl, downloadUrls, changelog, forceUpdate, md5 } = await req.json()
+    const { version, downloadUrl, downloadUrls, changelog, forceUpdate, md5, size: providedSize } = await req.json()
     let fileSizeBytes: number | null = null
 
     // 兼容性处理：如果提供了downloadUrls数组，使用它；否则使用单个downloadUrl
@@ -56,8 +56,12 @@ export async function POST(
       )
     }
 
-    // 获取文件大小（尽力而为）
-    try { fileSizeBytes = await resolveSizeForUrl(primaryUrl) } catch {}
+    // 获取文件大小（优先请求体提供的 size，其次自动解析）
+    if (Number.isFinite(Number(providedSize)) && Number(providedSize) > 0) {
+      fileSizeBytes = Number(providedSize)
+    } else {
+      try { fileSizeBytes = await resolveSizeForUrl(primaryUrl) } catch {}
+    }
 
     // 使用传入的MD5或生成一个默认值
     const finalMd5 = md5 || createHash('md5').update(primaryUrl).digest('hex')
