@@ -358,6 +358,7 @@ export default function ProjectsPage() {
       let downloadUrls: string[] = []
       let downloadUrl = ''
       let md5 = ''
+      let uploadedSize: number | undefined
 
       let storageProviders: { type: string | undefined; name: string; configId: any; objectKey: any }[] = []
       // 如果是文件上传
@@ -382,6 +383,7 @@ export default function ProjectsPage() {
         var storageProvider = uploadResults[0]?.storageProvider
         var objectKey = uploadResults[0]?.objectKey
         var storageConfigId = uploadResults[0]?.storageConfigId
+        uploadedSize = uploadResults[0]?.size as number | undefined
         storageProviders = uploadResults.map(r => {
           const type = r.storageProvider as string | undefined
           const cfgId = r.storageConfigId ?? null
@@ -415,6 +417,7 @@ export default function ProjectsPage() {
           changelog: uploadForm.changelog || '',
           forceUpdate: uploadForm.forceUpdate,
           md5: md5,
+          size: typeof uploadedSize === 'number' ? uploadedSize : undefined,
           storageProvider: typeof storageProvider !== 'undefined' ? storageProvider : null,
           objectKey: typeof objectKey !== 'undefined' ? objectKey : null,
           storageConfigId: typeof storageConfigId !== 'undefined' ? storageConfigId : null,
