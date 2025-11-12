@@ -152,7 +152,7 @@ export function ApiTokenCard() {
                   </>
                 )}
               </Button>
-              <Link href="/docs/api" className="flex-1">
+              <Link href="/docs/api" target="_blank" rel="noopener noreferrer" className="flex-1">
                 <Button variant="outline" size="sm" className="w-full">
                   <FileText className="mr-2 h-3 w-3" />
                   API文档

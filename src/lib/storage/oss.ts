@@ -35,9 +35,31 @@ export function createOSSProvider(raw: Partial<OSSConfig>): StorageProvider {
 
   return {
     name: 'OSS',
-    async putObject({ projectId, fileName, buffer, contentType }: PutParams): Promise<PutResult> {
+    async putObject({ projectId, fileName, buffer, filePath, stream, contentType }: PutParams): Promise<PutResult> {
       const key = `${projectId}/${encodeURIComponent(fileName)}`
-      const md5 = crypto.createHash('md5').update(buffer).digest('hex')
+      // 计算MD5（优先stream/filePath，避免大内存）
+      let md5 = ''
+      if (stream) {
+        md5 = await new Promise<string>((resolve, reject) => {
+          const hash = crypto.createHash('md5')
+          stream.on('data', (chunk: Buffer) => hash.update(chunk))
+          stream.on('end', () => resolve(hash.digest('hex')))
+          stream.on('error', reject)
+        })
+      } else if (filePath) {
+        const { createReadStream } = await import('fs')
+        md5 = await new Promise<string>((resolve, reject) => {
+          const hash = crypto.createHash('md5')
+          const rs = createReadStream(filePath)
+          rs.on('data', (chunk) => hash.update(chunk as Buffer))
+          rs.on('end', () => resolve(hash.digest('hex')))
+          rs.on('error', reject)
+        })
+      } else if (buffer) {
+        md5 = crypto.createHash('md5').update(buffer).digest('hex')
+      } else {
+        throw new Error('OSS putObject requires buffer | filePath | stream')
+      }
       const OSS = (await import('ali-oss')).default
       const client = new OSS({
         region: cfg.region,
@@ -47,9 +69,13 @@ export function createOSSProvider(raw: Partial<OSSConfig>): StorageProvider {
         ...(cfg.endpoint ? { endpoint: cfg.endpoint } : {}),
         secure: cfg.secure
       })
-      await client.put(key, buffer, {
-        headers: { 'Content-Type': contentType || 'application/octet-stream' }
-      })
+      if (filePath) {
+        await client.put(key, filePath, { headers: { 'Content-Type': contentType || 'application/octet-stream' } })
+      } else if (stream) {
+        await client.putStream(key, stream, { headers: { 'Content-Type': contentType || 'application/octet-stream' } })
+      } else if (buffer) {
+        await client.put(key, buffer, { headers: { 'Content-Type': contentType || 'application/octet-stream' } })
+      }
       const url = buildPublicUrl(cfg, key)
       return { url, fileName, md5, objectKey: key }
     }

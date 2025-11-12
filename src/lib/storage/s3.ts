@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import type { StorageProvider, PutParams, PutResult } from './types'
+import { createReadStream } from 'fs'
 
 type S3Config = {
   region: string
@@ -38,9 +39,29 @@ export function createS3Provider(raw: Partial<S3Config>): StorageProvider {
 
   return {
     name: 'S3',
-    async putObject({ projectId, fileName, buffer, contentType }: PutParams): Promise<PutResult> {
+    async putObject({ projectId, fileName, buffer, filePath, stream, contentType }: PutParams): Promise<PutResult> {
       const key = `${projectId}/${encodeURIComponent(fileName)}`
-      const md5 = crypto.createHash('md5').update(buffer).digest('hex')
+      let md5 = ''
+      if (stream) {
+        md5 = await new Promise<string>((resolve, reject) => {
+          const hash = crypto.createHash('md5')
+          stream.on('data', (chunk: Buffer) => hash.update(chunk))
+          stream.on('end', () => resolve(hash.digest('hex')))
+          stream.on('error', reject)
+        })
+      } else if (filePath) {
+        md5 = await new Promise<string>((resolve, reject) => {
+          const hash = crypto.createHash('md5')
+          const rs = createReadStream(filePath)
+          rs.on('data', (chunk) => hash.update(chunk as Buffer))
+          rs.on('end', () => resolve(hash.digest('hex')))
+          rs.on('error', reject)
+        })
+      } else if (buffer) {
+        md5 = crypto.createHash('md5').update(buffer).digest('hex')
+      } else {
+        throw new Error('S3 putObject requires buffer | filePath | stream')
+      }
       const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3')
       const client = new S3Client({
         region: cfg.region,
@@ -51,10 +72,11 @@ export function createS3Provider(raw: Partial<S3Config>): StorageProvider {
         ...(cfg.endpoint ? { endpoint: cfg.endpoint } : {}),
         ...(cfg.forcePathStyle ? { forcePathStyle: true } : {})
       })
+      const Body: any = stream ? stream : (filePath ? createReadStream(filePath) : buffer)
       await client.send(new PutObjectCommand({
         Bucket: cfg.bucket,
         Key: key,
-        Body: buffer,
+        Body,
         ContentType: contentType || 'application/octet-stream'
       }))
       const url = buildPublicUrl(cfg, key)

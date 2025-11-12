@@ -67,7 +67,7 @@ export default async function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href="/docs/api">
+              <Link href="/docs/api" target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" className="w-full">
                   查看文档
                 </Button>

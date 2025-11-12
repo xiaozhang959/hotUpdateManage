@@ -58,9 +58,7 @@ export function NavBar({ user }: NavBarProps) {
                 const Icon = item.icon
                 const isActive = pathname === item.href
                 return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
+                  <Link key={item.href} href={item.href} target={item.href === '/docs/api' ? '_blank' : undefined} rel={item.href === '/docs/api' ? 'noopener noreferrer' : undefined}
                     className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors
                       ${isActive
                         ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
@@ -127,9 +125,7 @@ export function NavBar({ user }: NavBarProps) {
               const Icon = item.icon
               const isActive = pathname === item.href
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
+                <Link key={item.href} href={item.href} target={item.href === '/docs/api' ? '_blank' : undefined} rel={item.href === '/docs/api' ? 'noopener noreferrer' : undefined}
                   className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors
                     ${isActive
                       ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'

@@ -1,5 +1,5 @@
-import { writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
+import { writeFile, mkdir, rename, stat } from 'fs/promises'
+import { existsSync, createReadStream, createWriteStream } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import type { StorageProvider, PutParams, PutResult, LocalConfig } from './types'
@@ -22,14 +22,41 @@ export function createLocalProvider(cfg?: LocalConfig): StorageProvider {
   const physicalBaseDir = subDir ? path.join(uploadsRoot, subDir) : uploadsRoot
   return {
     name: 'LOCAL',
-    async putObject({ projectId, fileName, buffer }: PutParams): Promise<PutResult> {
+    async putObject({ projectId, fileName, buffer, filePath, stream }: PutParams): Promise<PutResult> {
       const uploadDir = path.join(physicalBaseDir, projectId)
       if (!existsSync(uploadDir)) {
         await mkdir(uploadDir, { recursive: true })
       }
-      const filePath = path.join(uploadDir, fileName)
-      await writeFile(filePath, buffer)
-      const md5 = crypto.createHash('md5').update(buffer).digest('hex')
+      const destPath = path.join(uploadDir, fileName)
+
+      let md5 = ''
+      if (stream) {
+        // 单次流式写入并计算MD5
+        await new Promise<void>((resolve, reject) => {
+          const hash = crypto.createHash('md5')
+          const ws = createWriteStream(destPath)
+          stream.on('data', (chunk: Buffer) => hash.update(chunk))
+          stream.pipe(ws)
+          ws.on('finish', () => { md5 = hash.digest('hex'); resolve() })
+          ws.on('error', reject)
+          stream.on('error', reject)
+        })
+      } else if (filePath) {
+        await rename(filePath, destPath)
+        // 再次读取计算MD5（避免占用内存）
+        md5 = await new Promise<string>((resolve, reject) => {
+          const hash = crypto.createHash('md5')
+          const rs = createReadStream(destPath)
+          rs.on('data', (chunk) => hash.update(chunk as Buffer))
+          rs.on('end', () => resolve(hash.digest('hex')))
+          rs.on('error', reject)
+        })
+      } else if (buffer) {
+        await writeFile(destPath, buffer)
+        md5 = crypto.createHash('md5').update(buffer).digest('hex')
+      } else {
+        throw new Error('LOCAL putObject requires buffer | filePath | stream')
+      }
       const encoded = encodeURIComponent(fileName)
       const url = `${config.publicPrefix}/${projectId}/${encoded}`
       const objectKey = `${projectId}/${encoded}`

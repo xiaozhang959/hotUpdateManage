@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { Footer } from '@/components/layout/footer'
 import {
@@ -174,12 +174,38 @@ export default function AdminPage() {
   })
   const [addingVersion, setAddingVersion] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadProg, setUploadProg] = useState({ percent: 0, uploadedBytes: 0, totalBytes: 0, uploadedParts: 0, totalParts: 0, resumed: false, strategy: '' as 'S3_MULTIPART' | 'SERVER_CHUNK' | 'SINGLE' | '', retryAttempt: 0, retryDelayMs: 0 })
+  const uploaderRef = useRef<any>(null)
+  const [resumeDialogOpen, setResumeDialogOpen] = useState(false)
+  const [pendingSessions, setPendingSessions] = useState<{ key: string; meta: any }[]>([])
+  const refreshPending = async () => {
+    try {
+      const m = await import('@/lib/client/resumable-upload')
+      if (managingVersions?.id) setPendingSessions(m.listPendingSessionsByProject(managingVersions.id))
+    } catch {}
+  }
+
+  const formatBytes = (n: number) => {
+    if (!Number.isFinite(n)) return '0 B'
+    const units = ['B','KB','MB','GB','TB']
+    let i = 0
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i++ }
+    return `${n % 1 === 0 ? n : n.toFixed(1)} ${units[i]}`
+  }
   const [systemConfig, setSystemConfig] = useState<any>(null)
 
   useEffect(() => {
     fetchUsers()
     fetchProjects()
     fetchSystemConfig()
+    // 页面刷新后检测未完成会话
+    try {
+      import('@/lib/client/resumable-upload').then(m => {
+        const pendings = m.listPendingUploadSessions(); if (pendings.length>0) {
+          const w: any = typeof window !== 'undefined' ? (window as any) : {}; if (!w.__humPendingToastShown) { w.__humPendingToastShown = true; toast.info(`检测到 ${pendings.length} 个未完成的上传，会在选择相同文件后自动续传。`, { id: 'pending-uploads' }); setTimeout(() => { try { if (w) w.__humPendingToastShown = false } catch {} }, 2000); }
+        }
+      })
+    } catch {}
   }, [])
 
   const fetchSystemConfig = async () => {
@@ -442,25 +468,28 @@ export default function AdminPage() {
       // 如果是文件上传
       if (addVersionForm.uploadMethod === 'file' && addVersionForm.file) {
         setUploading(true)
-        const uploadFormData = new FormData()
-        uploadFormData.append('file', addVersionForm.file)
-        uploadFormData.append('projectId', projectId)
-
-        const uploadResponse = await fetch('/api/upload', {
-          method: 'POST',
-          body: uploadFormData
+        const { startResumableUpload, checkPendingForFile } = await import('@/lib/client/resumable-upload')
+        setUploadProg({ percent: 0, uploadedBytes: 0, totalBytes: addVersionForm.file.size, uploadedParts: 0, totalParts: 0, resumed: false, strategy: '', retryAttempt: 0, retryDelayMs: 0 })
+        const uploader = startResumableUpload({
+          file: addVersionForm.file,
+          projectId,
+          onProgress: (p) => {
+            const percent = Math.max(0, Math.min(100, Math.round((p.uploadedBytes / (p.totalBytes || 1)) * 100)))
+            setUploadProg(prev => ({ ...prev, percent, uploadedBytes: p.uploadedBytes, totalBytes: p.totalBytes, uploadedParts: p.uploadedParts, totalParts: p.totalParts }))
+          },
+          onEvent: (e) => {
+            if (e.type === 'started') setUploadProg(prev => ({ ...prev, strategy: e.strategy, totalParts: e.totalParts, totalBytes: e.totalBytes }))
+            if (e.type === 'resumed') setUploadProg(prev => ({ ...prev, resumed: true, uploadedBytes: e.uploadedBytes }))
+            if (e.type === 'retry') setUploadProg(prev => ({ ...prev, retryAttempt: e.attempt, retryDelayMs: e.delayMs }))
+          }
         })
-
-        if (!uploadResponse.ok) {
-          throw new Error('文件上传失败')
-        }
-
-        const uploadResult = await uploadResponse.json()
-        // 仅存储相对路径，避免绑定到本机域名/IP
-        downloadUrl = uploadResult.data.url
-        md5 = uploadResult.data.md5
-        var uploadedSize = uploadResult.data.size as number | undefined
+        uploaderRef.current = uploader
+        const uploadResult = await uploader.promise
+        downloadUrl = uploadResult.url
+        md5 = uploadResult.md5
+        var uploadedSize = uploadResult.size as number | undefined
         setUploading(false)
+        uploaderRef.current = null
       }
 
       const response = await fetch(`/api/admin/projects/${projectId}/versions`, {
@@ -486,6 +515,7 @@ export default function AdminPage() {
       setManagingVersions(null)
       setAddVersionForm({ version: '', downloadUrl: '', changelog: '', forceUpdate: false, uploadMethod: 'url', file: null })
     } catch (error: any) {
+      if (error?.name === 'AbortError') { toast.message('已取消上传', { id: 'upload-canceled' }); return }
       toast.error(error.message || '添加版本失败')
     } finally {
       setAddingVersion(false)
@@ -982,6 +1012,9 @@ export default function AdminPage() {
         </DialogContent>
       </Dialog>
 
+      
+      
+
       {/* 删除用户对话框 */}
       <AlertDialog open={!!deleteUser} onOpenChange={() => setDeleteUser(null)}>
         <AlertDialogContent>
@@ -1456,13 +1489,36 @@ export default function AdminPage() {
                       <div className="space-y-2 col-span-2">
                         <Label>选择文件 *</Label>
                         <FileUpload
-                          onFileSelect={(file) => setAddVersionForm({ ...addVersionForm, file })}
+                          onFileSelect={(file) => { setAddVersionForm({ ...addVersionForm, file }); try { import('@/lib/client/resumable-upload').then(m=>{ const pid = managingVersions?.id; if (pid && file && m.checkPendingForFile(file, pid)) { toast.info('检测到该文件的未完成上传，点击“添加版本”将从断点续传。', { id: 'file-pending-detected' }) } }) } catch {} }}
                           onFileRemove={() => setAddVersionForm({ ...addVersionForm, file: null })}
                           selectedFile={addVersionForm.file}
                           maxSize={systemConfig?.max_upload_size || 100 * 1024 * 1024}
                           uploading={uploading}
                           disabled={addingVersion}
                         />
+                        {uploading && (
+                          <>
+                          <div className="mt-2 space-y-1">
+                            <div className="flex items-center justify-between text-xs text-gray-600">
+                              <span>
+                                {uploadProg.strategy === 'S3_MULTIPART' ? 'S3多段直传' : uploadProg.strategy === 'SERVER_CHUNK' ? '分片上传' : '直传'}
+                                {uploadProg.resumed && <span className="ml-1 text-emerald-600">（已从上次中断恢复）</span>}
+                              </span>
+                              <span>{uploadProg.percent}%</span>
+                            </div>
+                            <div className="h-2 bg-gray-200 rounded">
+                              <div className="h-2 bg-orange-500 rounded" style={{ width: `${uploadProg.percent}%` }} />
+                            </div>
+                            <div className="text-[11px] text-gray-500 flex justify-between">
+                              <span>已传 {formatBytes(uploadProg.uploadedBytes)} / {formatBytes(uploadProg.totalBytes)}</span>
+                              {uploadProg.totalParts > 0 && <span>分片 {Math.min(uploadProg.uploadedParts, uploadProg.totalParts)}/{uploadProg.totalParts}</span>}
+                            </div>
+                            {uploadProg.retryAttempt > 0 && (
+                              <div className="text-[11px] text-orange-600">网络波动，{uploadProg.retryAttempt} 次重试，下一次约 {Math.ceil(uploadProg.retryDelayMs/1000)}s 后</div>
+                            )}
+                          </div>
+                          </>
+                        )}
                       </div>
                     )}
 
@@ -1492,7 +1548,7 @@ export default function AdminPage() {
                       </Label>
                     </div>
                   </div>
-                  <div className="mt-4">
+                  <div className="mt-4 flex gap-2">
                     <Button
                       onClick={() => handleAddVersion(managingVersions.id)}
                       disabled={addingVersion || uploading}
@@ -1509,6 +1565,13 @@ export default function AdminPage() {
                           添加版本
                         </>
                       )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={async () => { try { await uploaderRef.current?.cancel(); } catch {} finally { setUploading(false) } }}
+                      disabled={!uploading}
+                    >
+                      取消上传
                     </Button>
                   </div>
                 </CardContent>

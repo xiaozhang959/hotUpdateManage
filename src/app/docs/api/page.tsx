@@ -1,14 +1,10 @@
-import { auth } from '@/lib/auth'
-import { NavBar } from '@/components/layout/navbar'
-import { Footer } from '@/components/layout/footer'
 import { ApiDocsClient } from '@/components/api-docs-client'
+import { Footer } from '@/components/layout/footer'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Home, Package, Key, Rocket } from 'lucide-react'
+import { Home, ArrowUp, ArrowDown } from 'lucide-react'
 
 export default async function ApiDocsPage() {
-  const session = await auth()
-
   const apiEndpoints = [
     {
       category: '认证',
@@ -57,12 +53,16 @@ export default async function ApiDocsPage() {
   "success": true,
   "hasUpdate": true,
   "data": {
-    "version": "1.0.1",
-    "downloadUrl": "https://example.com/app.apk",
-    "md5": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "version": "1.0.x",
+    "downloadUrl": "/api/versions/{versionId}/download?i=0",
+    "md5": "0123456789abcdef0123456789abcdef",
+    "size": 123456,
     "forceUpdate": false,
-    "changelog": "修复已知问题",
-    "createdAt": "2024-01-01T00:00:00.000Z"
+    "changelog": "",
+    "createdAt": "2025-11-12T00:00:00.000Z",
+    "updatedAt": "2025-11-12T00:00:00.000Z",
+    "timestamp": 1762954467000,
+    "isCurrent": true
   }
 }`
         },
@@ -83,12 +83,16 @@ export default async function ApiDocsPage() {
   "success": true,
   "hasUpdate": true,
   "data": {
-    "version": "1.0.1",
-    "downloadUrl": "https://example.com/app.apk",
-    "md5": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "version": "1.0.x",
+    "downloadUrl": "/api/versions/{versionId}/download?i=0",
+    "md5": "0123456789abcdef0123456789abcdef",
+    "size": 123456,
     "forceUpdate": false,
-    "changelog": "修复已知问题",
-    "createdAt": "2024-01-01T00:00:00.000Z"
+    "changelog": "",
+    "createdAt": "2025-11-12T00:00:00.000Z",
+    "updatedAt": "2025-11-12T00:00:00.000Z",
+    "timestamp": 1762954467000,
+    "isCurrent": true
   }
 }`
         },
@@ -105,12 +109,16 @@ export default async function ApiDocsPage() {
           response: `{
   "success": true,
   "data": {
-    "version": "1.0.1",
-    "downloadUrl": "https://example.com/app.apk",
-    "md5": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "version": "1.0.x",
+    "downloadUrl": "/api/versions/{versionId}/download?i=0",
+    "md5": "0123456789abcdef0123456789abcdef",
+    "size": 123456,
     "forceUpdate": false,
-    "changelog": "修复已知问题",
-    "createdAt": "2024-01-01T00:00:00.000Z"
+    "changelog": "",
+    "createdAt": "2025-11-12T00:00:00.000Z",
+    "updatedAt": "2025-11-12T00:00:00.000Z",
+    "timestamp": 1762954467000,
+    "isCurrent": true
   }
 }`
         },
@@ -129,13 +137,15 @@ export default async function ApiDocsPage() {
           response: `{
   "success": true,
   "data": {
-    "version": "1.0.1",
-    "downloadUrl": "https://example.com/app.apk",
-    "size": 12345678,
-    "md5": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "version": "1.0.x",
+    "downloadUrl": "/api/versions/{versionId}/download?i=0",
+    "md5": "0123456789abcdef0123456789abcdef",
+    "size": 123456,
     "forceUpdate": false,
-    "changelog": "修复已知问题",
-    "createdAt": "2024-01-01T00:00:00.000Z",
+    "changelog": "",
+    "createdAt": "2025-11-12T00:00:00.000Z",
+    "updatedAt": "2025-11-12T00:00:00.000Z",
+    "timestamp": 1762954467000,
     "isCurrent": true
   }
 }`
@@ -154,13 +164,15 @@ export default async function ApiDocsPage() {
           response: `{
   "success": true,
   "data": {
-    "version": "1.0.1",
-    "downloadUrl": "https://example.com/app.apk",
-    "size": 12345678,
-    "md5": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "version": "1.0.x",
+    "downloadUrl": "/api/versions/{versionId}/download?i=0",
+    "md5": "0123456789abcdef0123456789abcdef",
+    "size": 123456,
     "forceUpdate": false,
-    "changelog": "修复已知问题",
-    "createdAt": "2024-01-01T00:00:00.000Z",
+    "changelog": "",
+    "createdAt": "2025-11-12T00:00:00.000Z",
+    "updatedAt": "2025-11-12T00:00:00.000Z",
+    "timestamp": 1762954467000,
     "isCurrent": true
   }
 }`
@@ -231,12 +243,15 @@ export default async function ApiDocsPage() {
     {
       "id": "versionxxxxx",
       "version": "1.0.1",
-      "downloadUrl": "https://example.com/app.apk",
-      "md5": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "downloadUrl": "/api/versions/{versionId}/download?i=0",
+      "md5": "0123456789abcdef0123456789abcdef",
+      "size": 123456,
       "forceUpdate": false,
-      "changelog": "修复已知问题",
+      "changelog": "",
       "isCurrent": true,
-      "createdAt": "2024-01-01T00:00:00.000Z"
+      "createdAt": "2025-11-12T00:00:00.000Z",
+      "updatedAt": "2025-11-12T00:00:00.000Z",
+      "timestamp": 1762954467000
     }
   ]
 }`
@@ -246,27 +261,22 @@ export default async function ApiDocsPage() {
           path: '/api/v1/versions',
           description: '创建新版本（支持文件上传或URL）',
           auth: 'Bearer Token',
-          body: `FormData:
-- projectId: 项目ID (required)
-- version: 版本号 (required)
-- changelog: 更新日志 (optional, 可为空)
-- forceUpdate: 是否强制更新 (boolean, optional)
-- file: 上传的文件 (File, optional)
-- url: 单个下载链接 (string, optional)
-- urls: 多个下载链接 (JSON array, optional)
-
-注意：上传方式优先级为 file > urls > url`,
+          body: `FormData:\n- projectId: 项目ID (required)\n- version: 版本号 (required)\n- changelog: 更新日志 (optional, 可为空)\n- forceUpdate: 是否强制更新 (boolean, optional)\n- file: 上传的文件 (File, optional)\n- url: 单个下载链接 (string, optional)\n- urls: 多个下载链接 (JSON array, optional)\n\n注意：上传方式优先级为 file > urls > url`,
           response: `{
   "success": true,
   "data": {
     "id": "versionxxxxx",
     "version": "1.0.1",
-    "downloadUrl": "https://example.com/app.apk",
-    "md5": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "downloadUrl": "/api/versions/{versionId}/download?i=0",
+    "md5": "0123456789abcdef0123456789abcdef",
+    "size": 123456,
     "forceUpdate": false,
-    "changelog": "修复已知问题",
+    "changelog": "",
     "projectId": "clxxxxx",
-    "createdAt": "2024-01-01T00:00:00.000Z"
+    "isCurrent": true,
+    "createdAt": "2025-11-12T00:00:00.000Z",
+    "updatedAt": "2025-11-12T00:00:00.000Z",
+    "timestamp": 1762954467000
   },
   "message": "Version created successfully"
 }`
@@ -276,176 +286,42 @@ export default async function ApiDocsPage() {
   ]
 
   const codeExamples = {
-    javascript: `// JavaScript/Node.js 示例
-const axios = require('axios');
-
-// 方式1: 使用API Key检查版本更新
-async function checkUpdateWithApiKey() {
-  try {
-    const response = await axios.post('http://your-domain.com/api/v1/check', {
-      currentVersion: '1.0.0',
-      platform: 'android'
-    }, {
-      headers: {
-        'X-API-Key': 'your-project-api-key',
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (response.data.hasUpdate) {
-      console.log('发现新版本:', response.data.data.version);
-      console.log('下载链接:', response.data.data.downloadUrl);
-    }
-  } catch (error) {
-    console.error('检查更新失败:', error);
-  }
-}
-
-// 方式2: 使用Bearer Token检查版本更新
-async function checkUpdateWithToken() {
-  try {
-    const response = await axios.post('http://your-domain.com/api/v1/check', {
-      currentVersion: '1.0.0',
-      projectId: 'clxxxxx',  // 使用Token时必需
-      platform: 'android'
-    }, {
-      headers: {
-        'Authorization': 'Bearer hot_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (response.data.hasUpdate) {
-      console.log('发现新版本:', response.data.data.version);
-      console.log('下载链接:', response.data.data.downloadUrl);
-    }
-  } catch (error) {
-    console.error('检查更新失败:', error);
-  }
-}`,
-    python: `# Python 示例
-import requests
-
-# 方式1: 使用API Key
-def check_update_with_api_key():
-    url = 'http://your-domain.com/api/v1/check'
-    headers = {
-        'X-API-Key': 'your-project-api-key',
-        'Content-Type': 'application/json'
-    }
-    data = {
-        'currentVersion': '1.0.0',
-        'platform': 'android'
-    }
-    
-    try:
-        response = requests.post(url, json=data, headers=headers)
-        result = response.json()
-        
-        if result['hasUpdate']:
-            print(f"发现新版本: {result['data']['version']}")
-            print(f"下载链接: {result['data']['downloadUrl']}")
-                
-    except requests.exceptions.RequestException as e:
-        print(f"检查更新失败: {e}")
-
-# 方式2: 使用Bearer Token
-def check_update_with_token():
-    url = 'http://your-domain.com/api/v1/check'
-    headers = {
-        'Authorization': 'Bearer hot_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-        'Content-Type': 'application/json'
-    }
-    data = {
-        'currentVersion': '1.0.0',
-        'projectId': 'clxxxxx',  # 使用Token时必需
-        'platform': 'android'
-    }
-    
-    try:
-        response = requests.post(url, json=data, headers=headers)
-        result = response.json()
-        
-        if result['hasUpdate']:
-            print(f"发现新版本: {result['data']['version']}")
-            print(f"下载链接: {result['data']['downloadUrl']}")
-                
-    except requests.exceptions.RequestException as e:
-        print(f"检查更新失败: {e}")`,
-    curl: `# cURL 命令行示例
-
-# 方式1: 使用API Key
-curl -X POST 'http://your-domain.com/api/v1/check' \\
-  -H 'X-API-Key: your-project-api-key' \\
-  -H 'Content-Type: application/json' \\
-  -d '{
-    "currentVersion": "1.0.0",
-    "platform": "android"
-  }'
-
-# 方式2: 使用Bearer Token
-curl -X POST 'http://your-domain.com/api/v1/check' \\
-  -H 'Authorization: Bearer hot_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' \\
-  -H 'Content-Type: application/json' \\
-  -d '{
-    "currentVersion": "1.0.0",
-    "projectId": "clxxxxx",
-    "platform": "android"
-  }'`
+    javascript: `// 使用API Key检查更新\nfetch('/api/v1/check', {\n  method: 'POST',\n  headers: { 'X-API-Key': 'your-project-api-key', 'Content-Type': 'application/json' },\n  body: JSON.stringify({ currentVersion: '1.0.0', platform: 'android' })\n})\n  .then(r => r.json())\n  .then(console.log)`,
+    python: `# 使用API Key检查更新\nimport requests\nresp = requests.post('http://your-domain.com/api/v1/check', json={\n  'currentVersion': '1.0.0', 'platform': 'android'\n}, headers={'X-API-Key': 'your-project-api-key'})\nprint(resp.json())`,
+    curl: `curl -X POST 'http://your-domain.com/api/v1/check' \\\n  -H 'X-API-Key: your-project-api-key' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"currentVersion":"1.0.0","platform":"android"}'`
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
-      {/* Use proper navigation bar if logged in */}
-      {session ? (
-        <NavBar user={session.user} />
-      ) : (
-        <nav className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur dark:bg-gray-900/95">
-          <div className="container mx-auto px-4">
-            <div className="flex h-16 items-center justify-between">
-              <div className="flex items-center gap-6">
-                <Link href="/" className="flex items-center gap-2">
-                  <Package className="h-6 w-6 text-orange-600" />
-                  <span className="text-xl font-bold">热更新管理</span>
-                </Link>
-                <span className="text-gray-400">/</span>
-                <span className="text-lg font-medium">API 文档</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <Link href="/">
-                  <Button variant="ghost" size="sm">
-                    <Home className="mr-2 h-4 w-4" />
-                    首页
-                  </Button>
-                </Link>
-                <Link href="/login">
-                  <Button size="sm" className="bg-orange-600 hover:bg-orange-700">
-                    登录
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </nav>
-      )}
-
-      <main className="container mx-auto px-4 py-8">
-        {/* 页面标题 */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            API 文档
-          </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">
-            热更新管理系统提供的完整API接口文档，帮助您快速集成版本检查和更新功能
-          </p>
-        </div>
-
-        {/* Use the client component for interactive parts */}
-        <ApiDocsClient apiEndpoints={apiEndpoints} codeExamples={codeExamples} />
+    <div className="min-h-screen flex flex-col">
+      <div id="top" />
+      <div className="fixed top-4 left-4 z-50">
+        <Link href="/dashboard">
+          <Button variant="outline" size="sm" className="bg-white/80 dark:bg-gray-900/80 backdrop-blur border-orange-200 dark:border-gray-700">
+            <Home className="h-4 w-4 mr-1" />
+            返回主页
+          </Button>
+        </Link>
+      </div>
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
+        <Link href="#top">
+          <Button size="sm" variant="outline" className="bg-white/80 dark:bg-gray-900/80 backdrop-blur border-gray-200 dark:border-gray-700">
+            <ArrowUp className="h-4 w-4 mr-1" />
+            到顶部
+          </Button>
+        </Link>
+        <Link href="#bottom">
+          <Button size="sm" variant="outline" className="bg-white/80 dark:bg-gray-900/80 backdrop-blur border-gray-200 dark:border-gray-700">
+            <ArrowDown className="h-4 w-4 mr-1" />
+            到底部
+          </Button>
+        </Link>
+      </div>
+      <main className="container mx-auto px-4 py-8 flex-1">
+        <h1 className="text-3xl font-bold mb-4">API 文档</h1>
+        <ApiDocsClient apiEndpoints={apiEndpoints as any} codeExamples={codeExamples} />
       </main>
-      
-      {/* Add footer if user is logged in */}
-      {session && <Footer />}
+      <div id="bottom" />
+      <Footer />
     </div>
   )
 }

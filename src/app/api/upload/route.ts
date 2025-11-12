@@ -106,10 +106,4 @@ export async function POST(req: NextRequest) {
 }
 
 // 配置允许的最大文件大小（100MB）
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '100mb'
-    }
-  }
-}
+// 注意：App Router 不支持 pages API 的 bodyParser 配置，已通过新分片上传接口处理大文件。

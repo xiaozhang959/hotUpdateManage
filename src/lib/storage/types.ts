@@ -3,7 +3,12 @@ export type StorageProviderName = 'LOCAL' | 'S3' | 'OSS' | 'WEBDAV'
 export interface PutParams {
   projectId: string
   fileName: string
-  buffer: Buffer
+  // 为兼容大文件与流式上传，三选一优先级：stream > filePath > buffer
+  buffer?: Buffer
+  filePath?: string
+  // Node.js Readable stream（按需引入，避免在浏览器端打包）
+  // 使用 any 以避免在边缘运行时类型不匹配
+  stream?: any
   contentType?: string
 }
 

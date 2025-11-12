@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -117,6 +117,18 @@ export default function ProjectsPage() {
     try { const res = await fetch('/api/storage-configs/available'); if (res.ok){ const data = await res.json(); setAvailableStorages(data.items||[]); const defaults = (data.items||[]).filter((x:any)=>x.isDefault).map((x:any)=> x.id ?? 'local'); setSelectedStorageIds(defaults.length? defaults:['local']) } } catch(e){ console.error('获取可用存储失败', e) }
   }
   const [uploading, setUploading] = useState(false)
+  const [uploadProg, setUploadProg] = useState({ percent: 0, uploadedBytes: 0, totalBytes: 0, uploadedParts: 0, totalParts: 0, resumed: false, strategy: '' as 'S3_MULTIPART' | 'SERVER_CHUNK' | 'SINGLE' | '', retryAttempt: 0, retryDelayMs: 0 })
+  const uploaderRef = useRef<any>(null)
+  const [resumeDialogOpen, setResumeDialogOpen] = useState(false)
+  const [pendingSessions, setPendingSessions] = useState<{ key: string; meta: any }[]>([])
+  const refreshPending = async () => { try { const m = await import('@/lib/client/resumable-upload'); if (uploadVersionDialog?.id) setPendingSessions(m.listPendingSessionsByProject(uploadVersionDialog.id)) } catch {} }
+  const formatBytes = (n: number) => {
+    if (!Number.isFinite(n)) return '0 B'
+    const units = ['B','KB','MB','GB','TB']
+    let i = 0
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i++ }
+    return `${n % 1 === 0 ? n : n.toFixed(1)} ${units[i]}`
+  }
 
   // 记住用户上次使用的上传方式（本地存储）
   const LAST_UPLOAD_METHOD_KEY = 'hum:lastUploadMethod'
@@ -142,6 +154,10 @@ export default function ProjectsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uploadVersionDialog])
+
+  useEffect(() => {
+    try { import('@/lib/client/resumable-upload').then(m => { const pendings = m.listPendingUploadSessions(); if (pendings.length > 0) { const w: any = typeof window !== 'undefined' ? (window as any) : {}; if (!w.__humPendingToastShown) { w.__humPendingToastShown = true; toast.info(`检测到 ${pendings.length} 个未完成的上传，选择相同文件后可继续。`, { id: 'pending-uploads' }); setTimeout(() => { try { if (w) w.__humPendingToastShown = false } catch {} }, 2000); } } }) } catch {}
+  }, [])
 
   useEffect(() => {
     fetchProjects()
@@ -367,14 +383,27 @@ export default function ProjectsPage() {
         const targets = selectedStorageIds.length ? selectedStorageIds : ['local']
         const uploadResults: any[] = []
         for (const t of targets) {
-          const fd = new FormData()
-          fd.append('file', uploadForm.file)
-          fd.append('projectId', uploadVersionDialog.id)
-          if (t !== 'local') fd.append('storageConfigId', t)
-          const uploadResponse = await fetch('/api/upload', { method: 'POST', body: fd })
-          if (!uploadResponse.ok) throw new Error('文件上传失败')
-          const json = await uploadResponse.json()
-          uploadResults.push(json.data)
+          const { startResumableUpload } = await import('@/lib/client/resumable-upload')
+          const storageConfigId = t === 'local' ? null : t
+          setUploadProg({ percent: 0, uploadedBytes: 0, totalBytes: uploadForm.file.size, uploadedParts: 0, totalParts: 0, resumed: false, strategy: '', retryAttempt: 0, retryDelayMs: 0 })
+          const uploader = startResumableUpload({
+            file: uploadForm.file,
+            projectId: uploadVersionDialog.id,
+            storageConfigId,
+            onProgress: (p) => {
+              const percent = Math.max(0, Math.min(100, Math.round((p.uploadedBytes / (p.totalBytes || 1)) * 100)))
+              setUploadProg(prev => ({ ...prev, percent, uploadedBytes: p.uploadedBytes, totalBytes: p.totalBytes, uploadedParts: p.uploadedParts, totalParts: p.totalParts }))
+            },
+            onEvent: (e) => {
+              if (e.type === 'started') setUploadProg(prev => ({ ...prev, strategy: e.strategy, totalParts: e.totalParts, totalBytes: e.totalBytes }))
+              if (e.type === 'resumed') setUploadProg(prev => ({ ...prev, resumed: true, uploadedBytes: e.uploadedBytes }))
+              if (e.type === 'retry') setUploadProg(prev => ({ ...prev, retryAttempt: e.attempt, retryDelayMs: e.delayMs }))
+            }
+          })
+          uploaderRef.current = uploader
+          const result = await uploader.promise
+          uploaderRef.current = null
+          uploadResults.push(result)
         }
         // 仅保存上传接口返回的相对/原始URL，不拼接 window.location.origin
         downloadUrls = uploadResults.map(r => r.url)
@@ -443,6 +472,7 @@ export default function ProjectsPage() {
       setUploadVersionDialog(null)
       fetchProjects()
     } catch (error: any) {
+      if (error?.name === 'AbortError') { toast.message('已取消上传', { id: 'upload-canceled' }); return }
       toast.error(error.message || '上传版本失败')
     } finally {
       setUploadingVersion(false)
@@ -876,7 +906,31 @@ export default function ProjectsPage() {
               ) : (
                 <motion.div key="file" initial={{opacity:0, y:6}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-6}} transition={{duration:0.18}} className="space-y-2">
                 <Label>选择文件 *</Label>
-                <FileUpload onFileSelect={(file) => setUploadForm({ ...uploadForm, file })} onFileRemove={() => setUploadForm({ ...uploadForm, file: null })} selectedFile={uploadForm.file} maxSize={systemConfig?.max_upload_size || 100 * 1024 * 1024} uploading={uploading} disabled={uploadingVersion} />
+                <FileUpload onFileSelect={(file) => { setUploadForm({ ...uploadForm, file }); try { import('@/lib/client/resumable-upload').then(m=>{ if (file && uploadVersionDialog?.id && m.checkPendingForFile(file, uploadVersionDialog.id)) { toast.info('检测到该文件的未完成上传，点击“上传”将从断点续传。', { id: 'file-pending-detected' }) } }) } catch {} }} onFileRemove={() => setUploadForm({ ...uploadForm, file: null })} selectedFile={uploadForm.file} maxSize={systemConfig?.max_upload_size || 100 * 1024 * 1024} uploading={uploading} disabled={uploadingVersion} />
+                {uploading && (
+  <>
+<div className="mt-2 space-y-1">
+                    <div className="flex items-center justify-between text-xs text-gray-600">
+                      <span>
+                        {uploadProg.strategy === 'S3_MULTIPART' ? 'S3多段直传' : uploadProg.strategy === 'SERVER_CHUNK' ? '分片上传' : '直传'}
+                        {uploadProg.resumed && <span className="ml-1 text-emerald-600">（已从上次中断恢复）</span>}
+                      </span>
+                      <span>{uploadProg.percent}%</span>
+                    </div>
+                    <div className="h-2 bg-gray-200 rounded">
+                      <div className="h-2 bg-orange-500 rounded" style={{ width: `${uploadProg.percent}%` }} />
+                    </div>
+                    <div className="text-[11px] text-gray-500 flex justify-between">
+                      <span>已传 {formatBytes(uploadProg.uploadedBytes)} / {formatBytes(uploadProg.totalBytes)}</span>
+                      {uploadProg.totalParts > 0 && <span>分片 {Math.min(uploadProg.uploadedParts, uploadProg.totalParts)}/{uploadProg.totalParts}</span>}
+                    </div>
+                    {uploadProg.retryAttempt > 0 && (
+                      <div className="text-[11px] text-orange-600">网络波动，{uploadProg.retryAttempt} 次重试，下一次约 {Math.ceil(uploadProg.retryDelayMs/1000)}s 后</div>
+                    )}
+                  </div>
+  </>
+)}
+                
                       <div className="space-y-2 mt-2">
                         <Label>选择存储（可多选）</Label>
                         <div className="grid grid-cols-2 gap-2">
@@ -939,8 +993,8 @@ export default function ProjectsPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setUploadVersionDialog(null)}
-              disabled={uploadingVersion || uploading}
+              onClick={async () => { if (uploading) { try { await uploaderRef.current?.cancel(); } catch {} finally { setUploading(false) } } else { setUploadVersionDialog(null) } }}
+              disabled={uploadingVersion && !uploading}
             >
               取消
             </Button>

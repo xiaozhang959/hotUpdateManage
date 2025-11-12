@@ -235,7 +235,7 @@ export default function Home() {
                       <CardTitle className="text-3xl mb-2">快速集成</CardTitle>
                       <CardDescription className="text-lg">
                         只需简单的API调用即可实现版本检测和自动更新
-                        <Link href="/docs/api" className="text-orange-600 hover:text-orange-700 ml-2 inline-flex items-center gap-1">
+                        <Link href="/docs/api" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:text-orange-700 ml-2 inline-flex items-center gap-1">
                           查看更多文档
                           <ArrowRight className="h-4 w-4" />
                         </Link>
@@ -266,17 +266,42 @@ export default function Home() {
                   <div className="pl-4 space-y-1">
                     <div className="text-gray-500">{'{'}</div>
                     <div className="text-gray-300 pl-4">
-                      <span className="text-blue-400">&quot;version&quot;</span>: <span className="text-yellow-400">&quot;1.0.0&quot;</span>,
+                      <span className="text-blue-400">&quot;success&quot;</span>: <span className="text-orange-400">true</span>,
                     </div>
                     <div className="text-gray-300 pl-4">
-                      <span className="text-blue-400">&quot;downloadUrl&quot;</span>: <span className="text-yellow-400">&quot;https://...&quot;</span>,
+                      <span className="text-blue-400">&quot;data&quot;</span>: {'{'}
                     </div>
-                    <div className="text-gray-300 pl-4">
+                    <div className="text-gray-300 pl-8">
+                      <span className="text-blue-400">&quot;version&quot;</span>: <span className="text-yellow-400">&quot;1.0.x&quot;</span>,
+                    </div>
+                    <div className="text-gray-300 pl-8">
+                      <span className="text-blue-400">&quot;downloadUrl&quot;</span>: <span className="text-yellow-400">&quot;/api/versions/&#123;versionId&#125;/download?i=0&quot;</span>,
+                    </div>
+                    <div className="text-gray-300 pl-8">
+                      <span className="text-blue-400">&quot;md5&quot;</span>: <span className="text-yellow-400">&quot;0123456789abcdef0123456789abcdef&quot;</span>,
+                    </div>
+                    <div className="text-gray-300 pl-8">
+                      <span className="text-blue-400">&quot;size&quot;</span>: <span className="text-orange-400">123456</span>,
+                    </div>
+                    <div className="text-gray-300 pl-8">
                       <span className="text-blue-400">&quot;forceUpdate&quot;</span>: <span className="text-orange-400">false</span>,
                     </div>
-                    <div className="text-gray-300 pl-4">
-                      <span className="text-blue-400">&quot;changelog&quot;</span>: <span className="text-yellow-400">&quot;更新说明&quot;</span>
+                    <div className="text-gray-300 pl-8">
+                      <span className="text-blue-400">&quot;changelog&quot;</span>: <span className="text-yellow-400">&quot;&quot;</span>,
                     </div>
+                    <div className="text-gray-300 pl-8">
+                      <span className="text-blue-400">&quot;createdAt&quot;</span>: <span className="text-yellow-400">&quot;2025-11-12T00:00:00.000Z&quot;</span>,
+                    </div>
+                    <div className="text-gray-300 pl-8">
+                      <span className="text-blue-400">&quot;updatedAt&quot;</span>: <span className="text-yellow-400">&quot;2025-11-12T00:00:00.000Z&quot;</span>,
+                    </div>
+                    <div className="text-gray-300 pl-8">
+                      <span className="text-blue-400">&quot;timestamp&quot;</span>: <span className="text-orange-400">1762954467000</span>,
+                    </div>
+                    <div className="text-gray-300 pl-8">
+                      <span className="text-blue-400">&quot;isCurrent&quot;</span>: <span className="text-orange-400">true</span>
+                    </div>
+                    <div className="text-gray-300 pl-4">{'}'}</div>
                     <div className="text-gray-500">{'}'}</div>
                   </div>
                 </code>

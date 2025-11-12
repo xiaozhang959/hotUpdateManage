@@ -1,7 +1,7 @@
 'use client'
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Footer } from '@/components/layout/footer'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -144,6 +144,18 @@ export default function ProjectVersionsPage() {
     md5: ''
   })
   const [uploading, setUploading] = useState(false)
+  const [uploadProg, setUploadProg] = useState({ percent: 0, uploadedBytes: 0, totalBytes: 0, uploadedParts: 0, totalParts: 0, resumed: false, strategy: '' as 'S3_MULTIPART' | 'SERVER_CHUNK' | 'SINGLE' | '', retryAttempt: 0, retryDelayMs: 0 })
+  const uploaderRef = useRef<any>(null)
+  const [resumeDialogOpen, setResumeDialogOpen] = useState(false)
+  const [pendingSessions, setPendingSessions] = useState<{ key: string; meta: any }[]>([])
+  const refreshPending = async () => { try { const m = await import('@/lib/client/resumable-upload'); setPendingSessions(m.listPendingSessionsByProject(projectId)) } catch {} }
+  const formatBytes = (n: number) => {
+    if (!Number.isFinite(n)) return '0 B'
+    const units = ['B','KB','MB','GB','TB']
+    let i = 0
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i++ }
+    return `${n % 1 === 0 ? n : n.toFixed(1)} ${units[i]}`
+  }
   const [resolvingMd5, setResolvingMd5] = useState(false)
   // 记住用户上次使用的上传方式（本地存储）
   const LAST_UPLOAD_METHOD_KEY = 'hum:lastUploadMethod'
@@ -166,6 +178,8 @@ export default function ProjectVersionsPage() {
   useEffect(() => {
     fetchProject()
     fetchSystemConfig()
+    // 检测未完成上传
+    try { import('@/lib/client/resumable-upload').then(m => { const pendings = m.listPendingUploadSessions(); if (pendings.length > 0) { const w: any = typeof window !== 'undefined' ? (window as any) : {}; if (!w.__humPendingToastShown) { w.__humPendingToastShown = true; toast.info(`检测到 ${pendings.length} 个未完成的上传，选择相同文件后可继续。`, { id: 'pending-uploads' }); setTimeout(() => { try { if (w) w.__humPendingToastShown = false } catch {} }, 2000); } } }) } catch {}
   }, [projectId])
 
   const fetchSystemConfig = async () => {
@@ -248,15 +262,29 @@ export default function ProjectVersionsPage() {
         // 目标存储集合（至少一个）
         const targets = selectedStorageIds.length ? selectedStorageIds : ['local']
         const uploadResults: any[] = []
+        const { startResumableUpload } = await import('@/lib/client/resumable-upload')
         for (const t of targets) {
-          const fd = new FormData()
-          fd.append('file', formData.file)
-          fd.append('projectId', projectId)
-          if (t !== 'local') fd.append('storageConfigId', t)
-          const resp = await fetch('/api/upload', { method: 'POST', body: fd })
-          if (!resp.ok) throw new Error('文件上传失败')
-          const json = await resp.json()
-          uploadResults.push(json.data)
+          const storageConfigId = t === 'local' ? null : t
+          // 重置并显示进度（逐目标存储串行上传）
+          setUploadProg({ percent: 0, uploadedBytes: 0, totalBytes: formData.file.size, uploadedParts: 0, totalParts: 0, resumed: false, strategy: '', retryAttempt: 0, retryDelayMs: 0 })
+          const uploader = startResumableUpload({
+            file: formData.file,
+            projectId,
+            storageConfigId,
+            onProgress: (p) => {
+              const percent = Math.max(0, Math.min(100, Math.round((p.uploadedBytes / (p.totalBytes || 1)) * 100)))
+              setUploadProg(prev => ({ ...prev, percent, uploadedBytes: p.uploadedBytes, totalBytes: p.totalBytes, uploadedParts: p.uploadedParts, totalParts: p.totalParts }))
+            },
+            onEvent: (e) => {
+              if (e.type === 'started') setUploadProg(prev => ({ ...prev, strategy: e.strategy, totalParts: e.totalParts, totalBytes: e.totalBytes }))
+              if (e.type === 'resumed') setUploadProg(prev => ({ ...prev, resumed: true, uploadedBytes: e.uploadedBytes }))
+              if (e.type === 'retry') setUploadProg(prev => ({ ...prev, retryAttempt: e.attempt, retryDelayMs: e.delayMs }))
+            }
+          })
+          uploaderRef.current = uploader
+          const result = await uploader.promise
+          uploaderRef.current = null
+          uploadResults.push(result)
         }
         // 汇总链接与MD5
         // 仅保存上传接口返回的相对/原始URL，不拼接 window.location.origin
@@ -331,6 +359,7 @@ export default function ProjectVersionsPage() {
       setDialogOpen(false)
       fetchProject()
     } catch (error: any) {
+      if (error?.name === 'AbortError') { toast.message('已取消上传', { id: 'upload-canceled' }); return }
       toast.error(error.message || '创建版本失败')
     } finally {
       setCreating(false)
@@ -885,7 +914,31 @@ export default function ProjectVersionsPage() {
                   ) : (
                     <motion.div key="file" initial={{opacity:0, y:6}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-6}} transition={{duration:0.18}} className="space-y-2">
                     <Label>选择文件 *</Label>
-                    <FileUpload onFileSelect={(file) => setFormData({ ...formData, file })} onFileRemove={() => setFormData({ ...formData, file: null })} selectedFile={formData.file} maxSize={systemConfig?.max_upload_size || 100 * 1024 * 1024} uploading={uploading} disabled={creating} />
+                    <FileUpload onFileSelect={(file) => { setFormData({ ...formData, file }); try { import('@/lib/client/resumable-upload').then(m=>{ if (file && m.checkPendingForFile(file, projectId)) { toast.info('检测到该文件的未完成上传，点击“创建版本”将从断点续传。', { id: 'file-pending-detected' }) } }) } catch {} }} onFileRemove={() => setFormData({ ...formData, file: null })} selectedFile={formData.file} maxSize={systemConfig?.max_upload_size || 100 * 1024 * 1024} uploading={uploading} disabled={creating} />
+                    {uploading && (
+  <>
+<div className="mt-2 space-y-1">
+                        <div className="flex items-center justify-between text-xs text-gray-600">
+                          <span>
+                            {uploadProg.strategy === 'S3_MULTIPART' ? 'S3多段直传' : uploadProg.strategy === 'SERVER_CHUNK' ? '分片上传' : '直传'}
+                            {uploadProg.resumed && <span className="ml-1 text-emerald-600">（已从上次中断恢复）</span>}
+                          </span>
+                          <span>{uploadProg.percent}%</span>
+                        </div>
+                        <div className="h-2 bg-gray-200 rounded">
+                          <div className="h-2 bg-orange-500 rounded" style={{ width: `${uploadProg.percent}%` }} />
+                        </div>
+                        <div className="text-[11px] text-gray-500 flex justify-between">
+                          <span>已传 {formatBytes(uploadProg.uploadedBytes)} / {formatBytes(uploadProg.totalBytes)}</span>
+                          {uploadProg.totalParts > 0 && <span>分片 {Math.min(uploadProg.uploadedParts, uploadProg.totalParts)}/{uploadProg.totalParts}</span>}
+                        </div>
+                        {uploadProg.retryAttempt > 0 && (
+                          <div className="text-[11px] text-orange-600">网络波动，{uploadProg.retryAttempt} 次重试，下一次约 {Math.ceil(uploadProg.retryDelayMs/1000)}s 后</div>
+                        )}
+                      </div>
+  </>
+)}
+                    
                     <div className="space-y-2">
                       <Label>选择存储（可多选）</Label>
                       <div className="grid grid-cols-2 gap-2">
@@ -944,8 +997,8 @@ export default function ProjectVersionsPage() {
               <DialogFooter>
                 <Button
                   variant="outline"
-                  onClick={() => setDialogOpen(false)}
-                  disabled={creating}
+                  onClick={async () => { if (uploading) { try { await uploaderRef.current?.cancel(); } catch {} finally { setUploading(false) } } else { setDialogOpen(false) } }}
+                  disabled={creating && !uploading}
                 >
                   取消
                 </Button>
@@ -1281,12 +1334,16 @@ export default function ProjectVersionsPage() {
               <code>{JSON.stringify({
   success: true,
   data: {
-    version: project.currentVersion || "1.0.0",
-    downloadUrl: "https://example.com/app-v1.0.0.apk",
-    md5: "a1b2c3d4e5f6...",
+    version: "1.0.x",
+    downloadUrl: "/api/versions/{versionId}/download?i=0",
+    md5: "0123456789abcdef0123456789abcdef",
+    size: 123456,
     forceUpdate: false,
-    changelog: "更新说明...",
-    createdAt: new Date().toISOString()
+    changelog: "",
+    createdAt: "2025-11-12T00:00:00.000Z",
+    updatedAt: "2025-11-12T00:00:00.000Z",
+    timestamp: 1762954467000,
+    isCurrent: true
   }
 }, null, 2)}</code>
             </pre>

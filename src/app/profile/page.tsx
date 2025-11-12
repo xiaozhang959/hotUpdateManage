@@ -268,7 +268,7 @@ export default function ProfilePage() {
                 使用API密钥通过Bearer Token方式调用API接口
               </CardDescription>
             </div>
-            <Link href="/docs/api">
+            <Link href="/docs/api" target="_blank" rel="noopener noreferrer">
               <Button variant="outline" size="sm">
                 <FileText className="h-4 w-4 mr-2" />
                 查看文档
@@ -375,7 +375,7 @@ export default function ProfilePage() {
         <CardFooter className="bg-gray-50 dark:bg-gray-900/50">
           <p className="text-sm text-gray-600 dark:text-gray-400">
             通过API密钥，您可以在应用程序中直接调用我们的API来管理项目和版本。
-            <Link href="/docs/api" className="text-orange-600 hover:underline ml-1">
+            <Link href="/docs/api" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline ml-1">
               查看API文档
             </Link>
           </p>
