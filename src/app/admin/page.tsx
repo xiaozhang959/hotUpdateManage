@@ -693,7 +693,7 @@ export default function AdminPage() {
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm text-gray-500">
                           <Calendar className="h-3 w-3" />
-                          {formatDate($1)}
+                          {formatDate(user.createdAt)}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -861,7 +861,7 @@ export default function AdminPage() {
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm text-gray-500">
                           <Clock className="h-3 w-3" />
-                          {formatDate($1)}
+                          {formatDate(project.updatedAt)}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -1169,11 +1169,11 @@ export default function AdminPage() {
                     </div>
                     <div>
                       <Label className="text-xs text-gray-500">创建时间</Label>
-                      <p className="text-sm">{formatDateTime($1)}</p>
+                      <p className="text-sm">{formatDateTime(viewProject.createdAt)}</p>
                     </div>
                     <div>
                       <Label className="text-xs text-gray-500">更新时间</Label>
-                      <p className="text-sm">{formatDateTime($1)}</p>
+                      <p className="text-sm">{formatDateTime(viewProject.updatedAt)}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -1278,7 +1278,7 @@ export default function AdminPage() {
                             </TableCell>
                               <TableCell>
                                 <span className="text-sm text-gray-500">
-                                  {formatDate($1)}
+                                  {formatDate(version.createdAt)}
                                 </span>
                               </TableCell>
                               <TableCell>
@@ -1566,7 +1566,7 @@ export default function AdminPage() {
                               </TableCell>
                               <TableCell>
                                 <span className="text-sm text-gray-500">
-                                  {formatDate($1)}
+                                  {formatDate(version.createdAt)}
                                 </span>
                               </TableCell>
                               <TableCell>

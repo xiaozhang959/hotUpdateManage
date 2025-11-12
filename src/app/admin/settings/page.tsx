@@ -653,7 +653,7 @@ export default function SystemSettingsPage() {
                         </div>
                         {config.updatedAt && !config.isDefault && !isModified && (
                           <p className="text-xs text-gray-500 pl-4">
-                            上次修改: {new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai'), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date($1))}
+                            上次修改: {new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai'), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date(config.updatedAt))}
                           </p>
                         )}
                       </div>
