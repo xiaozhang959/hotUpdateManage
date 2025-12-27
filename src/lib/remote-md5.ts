@@ -2,6 +2,7 @@ import { createHash } from 'crypto'
 import { existsSync, createReadStream, readdirSync } from 'fs'
 import { stat } from 'fs/promises'
 import path from 'path'
+import { assertSafeRemoteHttpUrl } from '@/lib/security/ssrf'
 
 // Helpers
 function normalizeEtag(etag: string | null): string | null {
@@ -48,7 +49,7 @@ export function getLocalUploadsPathFromUrl(url: string): string | null {
     const fileName = decodeURIComponent(encodedName)
     const uploadsRoot = path.join(process.cwd(), 'uploads')
     // 首选标准路径：uploads/projectId/file
-    let full = path.join(uploadsRoot, projectId, fileName)
+    const full = path.join(uploadsRoot, projectId, fileName)
     if (existsSync(full)) return full
     // 兼容 baseDir 子目录：uploads/<subDir>/projectId/file
     try {
@@ -84,7 +85,8 @@ export async function headForRemoteMd5(url: string): Promise<{ md5?: string; eta
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 8000)
   try {
-    const res = await fetch(url, { method: 'HEAD', signal: controller.signal as any })
+    const safe = await assertSafeRemoteHttpUrl(url)
+    const res = await fetch(safe, { method: 'HEAD', redirect: 'manual', signal: controller.signal as any })
     if (!res.ok) return null
     const rawEtag = normalizeEtag(res.headers.get('etag'))
     const contentMd5B64 = res.headers.get('content-md5')
@@ -111,7 +113,8 @@ export async function getForRemoteMd5(url: string, sizeLimitBytes = 100 * 1024 *
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 15000)
   try {
-    const res = await fetch(url, { method: 'GET', signal: controller.signal as any })
+    const safe = await assertSafeRemoteHttpUrl(url)
+    const res = await fetch(safe, { method: 'GET', redirect: 'manual', signal: controller.signal as any })
     if (!res.ok || !res.body) return null
     const lenHeader = res.headers.get('content-length')
     if (lenHeader && Number(lenHeader) > sizeLimitBytes) return null
@@ -185,10 +188,16 @@ export async function resolveSizeForUrl(url: string, timeoutMs = 8000): Promise<
   }
 
   // 远程：HEAD 优先
+  let safeUrl: URL
+  try {
+    safeUrl = await assertSafeRemoteHttpUrl(url)
+  } catch {
+    return null
+  }
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const head = await fetch(url, { method: 'HEAD', signal: controller.signal as any })
+    const head = await fetch(safeUrl, { method: 'HEAD', redirect: 'manual', signal: controller.signal as any })
     if (head.ok) {
       const len = head.headers.get('content-length')
       const n = len ? Number(len) : NaN
@@ -203,7 +212,7 @@ export async function resolveSizeForUrl(url: string, timeoutMs = 8000): Promise<
   const controller2 = new AbortController()
   const timer2 = setTimeout(() => controller2.abort(), timeoutMs)
   try {
-    const res = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' }, signal: controller2.signal as any })
+    const res = await fetch(safeUrl, { method: 'GET', redirect: 'manual', headers: { Range: 'bytes=0-0' }, signal: controller2.signal as any })
     if (res.status === 206) {
       const cr = res.headers.get('content-range') || '' // e.g. bytes 0-0/12345
       const m = /\/(\d+)$/.exec(cr)
