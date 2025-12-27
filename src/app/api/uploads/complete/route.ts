@@ -8,7 +8,13 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { uploadId } = body || {}
   if (!uploadId) return NextResponse.json({ error: '缺少 uploadId' }, { status: 400 })
-  const meta = await loadSession(uploadId)
+  let meta: any
+  try {
+    meta = await loadSession(uploadId, session.user.id)
+  } catch (e: any) {
+    if (e?.message === 'forbidden') return NextResponse.json({ error: '无权限访问该上传会话' }, { status: 403 })
+    return NextResponse.json({ error: '上传会话不存在或已过期' }, { status: 404 })
+  }
   const uploaded = await listUploadedParts(uploadId)
   if (uploaded.length !== meta.totalParts) {
     return NextResponse.json({ error: '分片未上传完整', uploaded }, { status: 400 })
@@ -27,4 +33,3 @@ export async function POST(req: NextRequest) {
     uploadedAt: new Date().toISOString()
   }})
 }
-

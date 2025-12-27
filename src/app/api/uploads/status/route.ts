@@ -8,8 +8,13 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const uploadId = searchParams.get('uploadId')
   if (!uploadId) return NextResponse.json({ error: '缺少 uploadId' }, { status: 400 })
-  const meta = await loadSession(uploadId)
+  let meta: any
+  try {
+    meta = await loadSession(uploadId, session.user.id)
+  } catch (e: any) {
+    if (e?.message === 'forbidden') return NextResponse.json({ error: '无权限访问该上传会话' }, { status: 403 })
+    return NextResponse.json({ error: '上传会话不存在或已过期' }, { status: 404 })
+  }
   const uploaded = await listUploadedParts(uploadId)
   return NextResponse.json({ success: true, data: { meta, uploaded } })
 }
-

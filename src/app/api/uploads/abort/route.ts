@@ -9,12 +9,12 @@ export async function POST(req: NextRequest) {
   const { uploadId } = body || {}
   if (!uploadId) return NextResponse.json({ error: '缺少 uploadId' }, { status: 400 })
   try {
-    const meta = await loadSession(uploadId)
-    // 非 S3 多段：直接删除会话目录
+    await loadSession(uploadId, session.user.id)
+    // 直接删除会话目录
     await removeSession(uploadId)
     return NextResponse.json({ success: true })
-  } catch {
+  } catch (e: any) {
+    if (e?.message === 'forbidden') return NextResponse.json({ error: '无权限访问该上传会话' }, { status: 403 })
     return NextResponse.json({ success: true })
   }
 }
-

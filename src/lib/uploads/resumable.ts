@@ -10,6 +10,7 @@ export type ResumableStrategy = 'LOCAL_CHUNK' | 'SERVER_CHUNK_TO_REMOTE' | 'S3_M
 
 export interface UploadSessionMeta {
   uploadId: string
+  userId: string
   strategy: ResumableStrategy
   projectId: string
   fileName: string
@@ -25,6 +26,8 @@ export interface UploadSessionMeta {
 }
 
 const SESSIONS_ROOT = path.join(process.cwd(), 'uploads', '_sessions')
+const SESSIONS_ROOT_RESOLVED = path.resolve(SESSIONS_ROOT)
+const UPLOAD_ID_RE = /^[0-9]{13}-[a-z0-9]{8}$/
 
 async function ensureDir(dir: string) {
   if (!existsSync(dir)) await fsp.mkdir(dir, { recursive: true })
@@ -32,6 +35,20 @@ async function ensureDir(dir: string) {
 
 function safeName(name: string) {
   return name.replace(/[<>:"|?*\\/]/g, '_').replace(/\.{2,}/g, '_').replace(/^\./, '_')
+}
+
+function assertSafeUploadId(uploadId: string) {
+  if (!UPLOAD_ID_RE.test(uploadId)) throw new Error('invalid uploadId')
+}
+
+function getSessionDir(uploadId: string) {
+  assertSafeUploadId(uploadId)
+  const dir = path.join(SESSIONS_ROOT, uploadId)
+  const resolved = path.resolve(dir)
+  if (!resolved.startsWith(SESSIONS_ROOT_RESOLVED + path.sep)) {
+    throw new Error('invalid uploadId')
+  }
+  return resolved
 }
 
 export function choosePartSize(fileSize: number) {
@@ -50,16 +67,18 @@ export async function createSession(params: { userId: string, projectId: string,
   const providerSel = specified || active.provider
   const providerName = providerSel.name
   const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  assertSafeUploadId(uploadId)
   const partSize = choosePartSize(params.fileSize)
   const totalParts = Math.max(1, Math.ceil(params.fileSize / partSize))
 
   await ensureDir(SESSIONS_ROOT)
-  const dir = path.join(SESSIONS_ROOT, uploadId)
+  const dir = getSessionDir(uploadId)
   await ensureDir(dir)
   await ensureDir(path.join(dir, 'parts'))
 
   let meta: UploadSessionMeta = {
     uploadId,
+    userId,
     strategy: providerName === 'S3' ? (params.preferSingle ? 'S3_SINGLE' : 'S3_MULTIPART') : (providerName === 'LOCAL' ? 'LOCAL_CHUNK' : 'SERVER_CHUNK_TO_REMOTE'),
     projectId,
     fileName: safeName(params.fileName),
@@ -95,14 +114,22 @@ export async function createSession(params: { userId: string, projectId: string,
   return meta
 }
 
-export async function loadSession(uploadId: string): Promise<UploadSessionMeta> {
-  const metaPath = path.join(SESSIONS_ROOT, uploadId, 'meta.json')
+export async function loadSession(uploadId: string, expectedUserId?: string): Promise<UploadSessionMeta> {
+  const metaPath = path.join(getSessionDir(uploadId), 'meta.json')
   const raw = await fsp.readFile(metaPath, 'utf-8')
-  return JSON.parse(raw)
+  const meta = JSON.parse(raw) as UploadSessionMeta
+
+  if (expectedUserId) {
+    if (!meta?.userId || meta.userId !== expectedUserId) {
+      throw new Error('forbidden')
+    }
+  }
+
+  return meta
 }
 
 export async function listUploadedParts(uploadId: string): Promise<number[]> {
-  const dir = path.join(SESSIONS_ROOT, uploadId, 'parts')
+  const dir = path.join(getSessionDir(uploadId), 'parts')
   try {
     const files = await fsp.readdir(dir)
     return files.map(f => parseInt(f.replace(/\.part$/, ''), 10)).filter(n => !isNaN(n)).sort((a,b)=>a-b)
@@ -112,7 +139,7 @@ export async function listUploadedParts(uploadId: string): Promise<number[]> {
 }
 
 export async function writeChunk(uploadId: string, partIndex: number, bodyStream: any) {
-  const partsDir = path.join(SESSIONS_ROOT, uploadId, 'parts')
+  const partsDir = path.join(getSessionDir(uploadId), 'parts')
   await ensureDir(partsDir)
   const partPath = path.join(partsDir, `${partIndex}.part`)
   await new Promise<void>((resolve, reject) => {
@@ -126,7 +153,7 @@ export async function writeChunk(uploadId: string, partIndex: number, bodyStream
 
 export async function assembleAndStore(uploadId: string) {
   const meta = await loadSession(uploadId)
-  const dir = path.join(SESSIONS_ROOT, uploadId)
+  const dir = getSessionDir(uploadId)
   const partsDir = path.join(dir, 'parts')
   const assembled = path.join(dir, 'assembled.tmp')
 
@@ -146,7 +173,7 @@ export async function assembleAndStore(uploadId: string) {
     if (!p) throw new Error('invalid storageConfigId')
     provider = p
   } else {
-    const sel = await getActiveStorageProvider()
+    const sel = await getActiveStorageProvider(meta.userId)
     provider = sel.provider
   }
   const put = await provider.putObject({ projectId: meta.projectId, fileName: meta.fileName, filePath: assembled, contentType: meta.contentType || 'application/octet-stream' })
@@ -154,7 +181,7 @@ export async function assembleAndStore(uploadId: string) {
 }
 
 export async function removeSession(uploadId: string) {
-  const dir = path.join(SESSIONS_ROOT, uploadId)
+  const dir = getSessionDir(uploadId)
   try {
     // 递归删除
     const { rm } = await import('fs/promises')

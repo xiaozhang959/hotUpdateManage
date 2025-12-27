@@ -12,7 +12,13 @@ export async function POST(req: NextRequest) {
   if (!uploadId || idxStr === null) return NextResponse.json({ error: '缺少 uploadId/index' }, { status: 400 })
   const index = parseInt(idxStr, 10)
   if (isNaN(index) || index < 0) return NextResponse.json({ error: 'index 非法' }, { status: 400 })
-  const meta = await loadSession(uploadId)
+  let meta: any
+  try {
+    meta = await loadSession(uploadId, session.user.id)
+  } catch (e: any) {
+    if (e?.message === 'forbidden') return NextResponse.json({ error: '无权限访问该上传会话' }, { status: 403 })
+    return NextResponse.json({ error: '上传会话不存在或已过期' }, { status: 404 })
+  }
   if (index >= meta.totalParts) return NextResponse.json({ error: 'index 超出范围' }, { status: 400 })
   const body = req.body
   if (!body) return NextResponse.json({ error: '缺少请求体' }, { status: 400 })
@@ -20,4 +26,3 @@ export async function POST(req: NextRequest) {
   await writeChunk(uploadId, index, nodeStream)
   return NextResponse.json({ success: true })
 }
-

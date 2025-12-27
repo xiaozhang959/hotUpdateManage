@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import path from 'path'
 import { getConfig } from '@/lib/system-config'
 import { getActiveStorageProvider, getProviderByConfigId } from '@/lib/storage'
+import { prisma } from '@/lib/prisma'
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,6 +30,17 @@ export async function POST(req: NextRequest) {
 
     if (!projectId) {
       return NextResponse.json({ error: '项目ID缺失' }, { status: 400 })
+    }
+
+    // 校验项目权限（管理员放行）
+    if (session.user.role !== 'ADMIN') {
+      const project = await prisma.project.findFirst({
+        where: { id: projectId, userId: session.user.id },
+        select: { id: true }
+      })
+      if (!project) {
+        return NextResponse.json({ error: '项目不存在或无权限' }, { status: 404 })
+      }
     }
 
     // 安全检查

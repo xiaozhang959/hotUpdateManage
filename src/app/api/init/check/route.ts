@@ -1,15 +1,19 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { initCache } from '@/lib/cache/init-cache'
+import { requireBootstrapToken } from '@/lib/security/bootstrap'
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const bootstrapError = requireBootstrapToken(req)
+    if (bootstrapError) {
+      return NextResponse.json({ error: bootstrapError }, { status: 403 })
+    }
     // 先检查缓存
     const cached = initCache.getStatus()
     if (cached && !initCache.isStale()) {
       return NextResponse.json({
         needsInit: cached.needsInit,
-        userCount: cached.userCount,
         cached: true
       })
     }
@@ -25,7 +29,6 @@ export async function GET() {
     
     return NextResponse.json({
       needsInit,
-      userCount,
       cached: false
     })
   } catch (error) {

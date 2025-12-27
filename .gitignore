@@ -48,6 +48,9 @@ uploads/*
 
 /src/generated/prisma
 
+# local agent tooling
+/.serena/
+
 # uploaded files
 /public/uploads/
 upd/

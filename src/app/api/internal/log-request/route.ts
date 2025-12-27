@@ -3,6 +3,15 @@ import { prisma } from '@/lib/prisma'
 
 export async function POST(request: Request) {
   try {
+    const expected = (process.env.HOT_UPDATE_INTERNAL_TOKEN || '').trim()
+    if (!expected) {
+      return NextResponse.json({ error: 'Not Found' }, { status: 404 })
+    }
+    const provided = (request.headers.get('x-internal-token') || '').trim()
+    if (!provided || provided !== expected) {
+      return NextResponse.json({ error: 'Not Found' }, { status: 404 })
+    }
+
     const {
       endpoint,
       method,

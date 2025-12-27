@@ -9,7 +9,13 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const uploadId = searchParams.get('uploadId')
   if (!uploadId) return NextResponse.json({ error: '缺少 uploadId' }, { status: 400 })
-  const meta = await loadSession(uploadId)
+  let meta: any
+  try {
+    meta = await loadSession(uploadId, session.user.id)
+  } catch (e: any) {
+    if (e?.message === 'forbidden') return NextResponse.json({ error: '无权限访问该上传会话' }, { status: 403 })
+    return NextResponse.json({ error: '上传会话不存在或已过期' }, { status: 404 })
+  }
   if (meta.strategy !== 'S3_SINGLE') return NextResponse.json({ error: '会话不是 S3 单次直传' }, { status: 400 })
   const cfgRec = meta.storageConfigId ? await prisma.storageConfig.findUnique({ where: { id: meta.storageConfigId } }) : null
   const cfg = cfgRec ? JSON.parse(cfgRec.configJson || '{}') : {}
@@ -24,4 +30,3 @@ export async function GET(req: NextRequest) {
   const url = await getSignedUrl(client, new PutObjectCommand({ Bucket: cfg.bucket, Key: meta.objectKey!, ContentType: meta.contentType || 'application/octet-stream' }), { expiresIn: 3600 })
   return NextResponse.json({ success: true, data: { url } })
 }
-

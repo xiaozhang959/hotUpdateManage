@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { requireBootstrapToken } from '@/lib/security/bootstrap'
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const bootstrapError = requireBootstrapToken(req)
+    if (bootstrapError) {
+      return NextResponse.json({ error: bootstrapError }, { status: 403 })
+    }
     // 检查是否已有管理员
     const adminCount = await prisma.user.count({
       where: { role: 'ADMIN' }
@@ -24,6 +29,13 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const body = await req.json()
+    const { email, username, password, bootstrapToken } = body || {}
+    const bootstrapError = requireBootstrapToken(req, bootstrapToken)
+    if (bootstrapError) {
+      return NextResponse.json({ error: bootstrapError }, { status: 403 })
+    }
+
     // 检查是否已有管理员
     const adminCount = await prisma.user.count({
       where: { role: 'ADMIN' }
@@ -35,8 +47,6 @@ export async function POST(req: Request) {
         { status: 400 }
       )
     }
-
-    const { email, username, password } = await req.json()
 
     // 验证输入
     if (!email || !username || !password) {

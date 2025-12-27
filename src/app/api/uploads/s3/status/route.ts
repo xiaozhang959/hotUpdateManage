@@ -9,7 +9,13 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const uploadId = searchParams.get('uploadId')
   if (!uploadId) return NextResponse.json({ error: '缺少 uploadId' }, { status: 400 })
-  const meta = await loadSession(uploadId)
+  let meta: any
+  try {
+    meta = await loadSession(uploadId, session.user.id)
+  } catch (e: any) {
+    if (e?.message === 'forbidden') return NextResponse.json({ error: '无权限访问该上传会话' }, { status: 403 })
+    return NextResponse.json({ error: '上传会话不存在或已过期' }, { status: 404 })
+  }
   if (meta.strategy !== 'S3_MULTIPART' || !meta.s3UploadId) return NextResponse.json({ error: '会话不是 S3 多段上传' }, { status: 400 })
 
   const cfgRec = meta.storageConfigId ? await prisma.storageConfig.findUnique({ where: { id: meta.storageConfigId } }) : null
@@ -25,4 +31,3 @@ export async function GET(req: NextRequest) {
   const uploaded = (res.Parts || []).map(p => ({ PartNumber: p.PartNumber!, ETag: p.ETag }))
   return NextResponse.json({ success: true, data: { uploaded } })
 }
-

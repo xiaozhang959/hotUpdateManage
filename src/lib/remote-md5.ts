@@ -47,9 +47,15 @@ export function getLocalUploadsPathFromUrl(url: string): string | null {
     const projectId = parts[2]
     const encodedName = parts.slice(3).join('/') // support nested segments if any
     const fileName = decodeURIComponent(encodedName)
+    if (!projectId || !fileName) return null
+    // 防止目录穿越：文件名不允许包含路径分隔或 ..
+    if (fileName.includes('..') || fileName.includes('\\') || fileName.includes('/')) return null
     const uploadsRoot = path.join(process.cwd(), 'uploads')
+    const uploadsRootResolved = path.resolve(uploadsRoot)
     // 首选标准路径：uploads/projectId/file
     const full = path.join(uploadsRoot, projectId, fileName)
+    const fullResolved = path.resolve(full)
+    if (!fullResolved.startsWith(uploadsRootResolved + path.sep)) return null
     if (existsSync(full)) return full
     // 兼容 baseDir 子目录：uploads/<subDir>/projectId/file
     try {
@@ -57,6 +63,8 @@ export function getLocalUploadsPathFromUrl(url: string): string | null {
       for (const e of entries) {
         if (e.isDirectory() && e.name.toLowerCase() !== projectId.toLowerCase()) {
           const candidate = path.join(uploadsRoot, e.name, projectId, fileName)
+          const candidateResolved = path.resolve(candidate)
+          if (!candidateResolved.startsWith(uploadsRootResolved + path.sep)) continue
           if (existsSync(candidate)) return candidate
         }
       }

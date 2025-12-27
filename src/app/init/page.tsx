@@ -21,6 +21,7 @@ export default function InitPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
+    bootstrapToken: '',
     email: '',
     username: '',
     password: '',
@@ -75,6 +76,7 @@ export default function InitPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          bootstrapToken: formData.bootstrapToken,
           email: formData.email,
           username: formData.username,
           password: formData.password,
@@ -137,6 +139,19 @@ export default function InitPage() {
                 这是系统的首次运行，您将创建的账户将成为超级管理员，拥有系统的最高权限。
               </AlertDescription>
             </Alert>
+
+            <div className="space-y-2">
+              <Label htmlFor="bootstrapToken">初始化令牌（生产环境必填）</Label>
+              <Input
+                id="bootstrapToken"
+                name="bootstrapToken"
+                type="text"
+                placeholder="部署时设置 HOT_UPDATE_BOOTSTRAP_TOKEN"
+                value={formData.bootstrapToken}
+                onChange={handleChange}
+                disabled={loading}
+              />
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">邮箱</Label>

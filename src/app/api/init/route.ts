@@ -4,9 +4,18 @@ import bcrypt from 'bcryptjs'
 import { initCache } from '@/lib/cache/init-cache'
 import { initState, needsInitialization } from '@/lib/server/init-state'
 import { revalidatePath } from 'next/cache'
+import { requireBootstrapToken } from '@/lib/security/bootstrap'
 
 export async function POST(request: NextRequest) {
   try {
+    const body = await request.json()
+    const { email, username, password, bootstrapToken } = body || {}
+
+    const bootstrapError = requireBootstrapToken(request, bootstrapToken)
+    if (bootstrapError) {
+      return NextResponse.json({ error: bootstrapError }, { status: 403 })
+    }
+
     // 三重检查：确保系统真的需要初始化
     // 1. 使用全局状态检查
     const needsInit = await needsInitialization()
@@ -27,9 +36,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    const body = await request.json()
-    const { email, username, password } = body
 
     // 验证必填字段
     if (!email || !username || !password) {
