@@ -1,7 +1,6 @@
 import { promises as fsp } from 'fs'
 import { existsSync, createWriteStream, createReadStream } from 'fs'
 import path from 'path'
-import crypto from 'crypto'
 import { getActiveStorageProvider, getProviderByConfigId } from '@/lib/storage'
 import type { StorageProvider } from '@/lib/storage/types'
 import { prisma } from '@/lib/prisma'
@@ -76,7 +75,7 @@ export async function createSession(params: { userId: string, projectId: string,
   await ensureDir(dir)
   await ensureDir(path.join(dir, 'parts'))
 
-  let meta: UploadSessionMeta = {
+  const meta: UploadSessionMeta = {
     uploadId,
     userId,
     strategy: providerName === 'S3' ? (params.preferSingle ? 'S3_SINGLE' : 'S3_MULTIPART') : (providerName === 'LOCAL' ? 'LOCAL_CHUNK' : 'SERVER_CHUNK_TO_REMOTE'),
