@@ -151,8 +151,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
       text: options.text || options.html.replace(/<[^>]*>/g, '') // 简单移除HTML标签
     }
 
-    const info = await transporter.sendMail(mailOptions)
-    // console.log('邮件发送成功:', info.messageId)
+    await transporter.sendMail(mailOptions)
     success = true
   } catch (err) {
     console.error('发送邮件失败:', err)

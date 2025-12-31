@@ -22,7 +22,7 @@ export async function getActiveStorageProvider(userId?: string | null): Promise<
         return { scope: 'user', provider: buildProvider(userCfg.provider, userCfg.configJson), configId: userCfg.id }
       }
     }
-  } catch (e) {
+  } catch {
     // ignore, fallthrough
   }
 
@@ -34,7 +34,7 @@ export async function getActiveStorageProvider(userId?: string | null): Promise<
     if (globalCfg) {
       return { scope: 'global', provider: buildProvider(globalCfg.provider, globalCfg.configJson), configId: globalCfg.id }
     }
-  } catch (e) {
+  } catch {
     // ignore
   }
 

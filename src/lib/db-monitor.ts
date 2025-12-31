@@ -119,7 +119,7 @@ class DatabaseMonitor {
       // 获取SQLite特定的统计信息
       const pageCount = await prisma.$queryRaw<any>`PRAGMA page_count;`
       const pageSize = await prisma.$queryRaw<any>`PRAGMA page_size;`
-      const walInfo = await prisma.$queryRaw<any>`PRAGMA wal_checkpoint(TRUNCATE);`
+      await prisma.$queryRaw<any>`PRAGMA wal_checkpoint(TRUNCATE);`
 
       const dbSize = pageCount?.[0]?.page_count * pageSize?.[0]?.page_size || 0
 

@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   // 简化的 middleware：只处理基本路由，不进行数据库查询
   // 初始化检查将在页面组件层面进行
+  void request
   return NextResponse.next()
 }
 

@@ -5,18 +5,24 @@ import { cn } from '@/lib/utils'
 import { 
   Upload, 
   X, 
-  FileIcon, 
-  CheckCircle, 
   AlertCircle,
   Loader2,
   File,
   FileText,
   FileCode,
   Archive,
-  Image
+  Image as ImageIcon
 } from 'lucide-react'
 import { Button } from './button'
 import { Badge } from './badge'
+
+function formatFileSize(bytes: number) {
+  if (bytes === 0) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void
@@ -49,7 +55,7 @@ export function FileUpload({
     const ext = fileName.split('.').pop()?.toLowerCase()
     
     if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(ext || '')) {
-      return <Image className="h-5 w-5" />
+      return <ImageIcon className="h-5 w-5" />
     }
     if (['zip', 'rar', '7z', 'tar', 'gz', 'apk', 'ipa', 'aab'].includes(ext || '')) {
       return <Archive className="h-5 w-5" />
@@ -63,26 +69,18 @@ export function FileUpload({
     return <File className="h-5 w-5" />
   }
 
-  // 格式化文件大小
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes'
-    const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
 
   // 验证文件
-  const validateFile = (file: File): boolean => {
+  const validateFile = useCallback((file: File): boolean => {
     setError(null)
-    
+
     if (maxSize && file.size > maxSize) {
       setError(`文件大小不能超过 ${formatFileSize(maxSize)}`)
       return false
     }
-    
+
     return true
-  }
+  }, [maxSize])
 
   // 处理文件选择
   const handleFile = useCallback((file: File) => {
@@ -90,7 +88,7 @@ export function FileUpload({
       onFileSelect(file)
       setError(null)
     }
-  }, [onFileSelect, maxSize])
+  }, [onFileSelect, validateFile])
 
   // 拖放事件处理
   const handleDrag = useCallback((e: React.DragEvent) => {

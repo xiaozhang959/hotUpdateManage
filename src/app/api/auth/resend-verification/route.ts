@@ -5,7 +5,7 @@ import { getConfig } from '@/lib/system-config'
 import { sendEmail, generateVerificationEmail } from '@/lib/mailer'
 import crypto from 'crypto'
 
-export async function POST(req: Request) {
+export async function POST() {
   try {
     const session = await auth()
     

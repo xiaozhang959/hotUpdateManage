@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Package2, Rocket, Shield, Zap, ArrowDown, ArrowRight, Sparkles, Code2 } from 'lucide-react'
 import AnimatedStats from '@/components/animated-stats'
 import { motion, useScroll, useTransform } from 'framer-motion'
-import { useEffect, useState, useRef } from 'react'
+import { useRef } from 'react'
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 60 },

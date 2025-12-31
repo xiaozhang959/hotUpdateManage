@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { DEFAULT_CONFIGS, getConfigs, setConfig } from '@/lib/system-config'
+import { DEFAULT_CONFIGS } from '@/lib/system-config'
 import { configCache } from '@/lib/cache/config-cache'
 
 // 获取所有系统配置

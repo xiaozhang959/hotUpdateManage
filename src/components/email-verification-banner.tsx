@@ -80,7 +80,7 @@ export function EmailVerificationBanner({ emailVerified, email }: EmailVerificat
           description: data.error || '请稍后重试'
         })
       }
-    } catch (error) {
+    } catch {
       toast.error('发送失败', {
         description: '请检查网络连接'
       })

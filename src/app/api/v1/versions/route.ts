@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateBearerToken, validateApiKey } from '@/lib/auth-bearer'
+import { validateBearerToken } from '@/lib/auth-bearer'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import { resolveMd5ForUrl, isUploadsUrl, resolveSizeForUrl } from '@/lib/remote-md5'
@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
             md5Source = 'random'
           }
         }
-      } catch (e) {
+      } catch {
         return NextResponse.json(
           { error: 'Invalid URLs format. Must be a JSON array of strings' },
           { status: 400 }

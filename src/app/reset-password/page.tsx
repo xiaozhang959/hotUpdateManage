@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,7 +12,6 @@ import { toast } from 'sonner'
 import { Loader2, Lock, CheckCircle, XCircle, Eye, EyeOff, AlertTriangle } from 'lucide-react'
 
 function ResetPasswordForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
   
@@ -32,23 +31,16 @@ function ResetPasswordForm() {
     message: ''
   })
 
-  useEffect(() => {
-    if (token) {
-      verifyToken()
-    } else {
-      setVerifying(false)
-    }
-  }, [token])
 
   useEffect(() => {
     checkPasswordStrength(formData.password)
   }, [formData.password])
 
-  const verifyToken = async () => {
+  const verifyToken = useCallback(async () => {
     try {
       const response = await fetch(`/api/auth/reset-password?token=${token}`)
       const data = await response.json()
-      
+
       if (response.ok && data.valid) {
         setTokenValid(true)
         setTokenEmail(data.email || '')
@@ -58,7 +50,7 @@ function ResetPasswordForm() {
           description: data.error || '请重新申请密码重置'
         })
       }
-    } catch (error) {
+    } catch {
       setTokenValid(false)
       toast.error('验证失败', {
         description: '请检查网络连接'
@@ -66,9 +58,17 @@ function ResetPasswordForm() {
     } finally {
       setVerifying(false)
     }
-  }
+  }, [token])
 
-  const checkPasswordStrength = (password: string) => {
+  useEffect(() => {
+    if (token) {
+      verifyToken()
+    } else {
+      setVerifying(false)
+    }
+  }, [token, verifyToken])
+
+  function checkPasswordStrength(password: string) {
     if (!password) {
       setPasswordStrength({ score: 0, message: '' })
       return
@@ -142,7 +142,7 @@ function ResetPasswordForm() {
           description: data.error || '请稍后重试'
         })
       }
-    } catch (error) {
+    } catch {
       toast.error('请求失败', {
         description: '请检查网络连接'
       })

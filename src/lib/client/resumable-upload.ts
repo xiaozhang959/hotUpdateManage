@@ -194,22 +194,15 @@ export async function uploadFileResumable(opts: Options): Promise<UploadResult> 
 
 // 控制型上传：返回控制器，可暂停/继续/取消
 export function startResumableUpload(opts: Options) {
-  let paused = false
   let canceled = false
   let inFlight: AbortController | null = null
-  let resumeResolver: (() => void) | null = null
   let currentUploadId: string | null = null
   let currentStrategy: 'S3_MULTIPART' | 'SERVER_CHUNK' | 'SINGLE' | null = null
   const fp = fingerprint(opts.file, opts.projectId, opts.storageConfigId || null)
   const ttlHours = parseInt(process.env.NEXT_PUBLIC_UPLOAD_RESUME_TTL_HOURS || '72', 10) || 72
   const TTL = ttlHours * 3600 * 1000
 
-  const waitIfPaused = () => new Promise<void>((resolve) => {
-    if (!paused) return resolve()
-    resumeResolver = resolve
-  })
-  const setPaused = (v: boolean) => { paused = v; if (!paused && resumeResolver) { const r = resumeResolver; resumeResolver = null; r() } }
-
+  const waitIfPaused = async () => {}
   // 重试/退避策略与工具
   const retryCfg = {
     maxRetries: Math.max(0, opts.retry?.maxRetries ?? 5),
@@ -231,7 +224,6 @@ export function startResumableUpload(opts: Options) {
         if (e?.name === 'AbortError') {
           // 如果是暂停触发的中断，则等待继续后重试；取消则直接抛出
           if (canceled) throw e
-          if (paused) { await waitIfPaused(); continue }
           throw e
         }
         lastErr = e

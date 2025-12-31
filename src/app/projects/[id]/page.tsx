@@ -1,7 +1,7 @@
 'use client'
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Footer } from '@/components/layout/footer'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -10,7 +10,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
   Dialog,
@@ -45,14 +44,11 @@ import {
   SegmentedToggle
 } from '@/components/ui'
 import { Checkbox } from '@/components/ui/checkbox'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FileUpload } from '@/components/ui/file-upload'
 import { toast } from 'sonner'
 import {
   Plus,
   Trash2,
-  Clock,
   FileText,
   Link2,
   Loader2,
@@ -146,9 +142,6 @@ export default function ProjectVersionsPage() {
   const [uploading, setUploading] = useState(false)
   const [uploadProg, setUploadProg] = useState({ percent: 0, uploadedBytes: 0, totalBytes: 0, uploadedParts: 0, totalParts: 0, resumed: false, strategy: '' as 'S3_MULTIPART' | 'SERVER_CHUNK' | 'SINGLE' | '', retryAttempt: 0, retryDelayMs: 0 })
   const uploaderRef = useRef<any>(null)
-  const [resumeDialogOpen, setResumeDialogOpen] = useState(false)
-  const [pendingSessions, setPendingSessions] = useState<{ key: string; meta: any }[]>([])
-  const refreshPending = async () => { try { const m = await import('@/lib/client/resumable-upload'); setPendingSessions(m.listPendingSessionsByProject(projectId)) } catch {} }
   const formatBytes = (n: number) => {
     if (!Number.isFinite(n)) return '0 B'
     const units = ['B','KB','MB','GB','TB']
@@ -175,27 +168,23 @@ export default function ProjectVersionsPage() {
   const [filterStart, setFilterStart] = useState('') // YYYY-MM-DD
   const [filterEnd, setFilterEnd] = useState('') // YYYY-MM-DD
 
-  useEffect(() => {
-    fetchProject()
-    fetchSystemConfig()
-    // 检测未完成上传
-    try { import('@/lib/client/resumable-upload').then(m => { const pendings = m.listPendingUploadSessions(); if (pendings.length > 0) { const w: any = typeof window !== 'undefined' ? (window as any) : {}; if (!w.__humPendingToastShown) { w.__humPendingToastShown = true; toast.info(`检测到 ${pendings.length} 个未完成的上传，选择相同文件后可继续。`, { id: 'pending-uploads' }); setTimeout(() => { try { if (w) w.__humPendingToastShown = false } catch {} }, 2000); } } }) } catch {}
-  }, [projectId])
-
-  const fetchSystemConfig = async () => {
+  const fetchSystemConfig = useCallback(async () => {
     try {
       const response = await fetch('/api/system/config')
       if (response.ok) {
         const config = await response.json()
         setSystemConfig(config)
-        if (!config.upload_enabled && formData.uploadMethod === 'file') {
-          setFormData(prev => ({ ...prev, uploadMethod: 'url' }))
+        if (!config.upload_enabled) {
+          setFormData(prev => {
+            if (prev.uploadMethod !== 'file') return prev
+            return { ...prev, uploadMethod: 'url', file: null }
+          })
         }
       }
     } catch (error) {
       console.error('获取系统配置失败:', error)
     }
-  }
+  }, [])
 
   // 可用存储
   const [availableStorages, setAvailableStorages] = useState<{id:string|null,name:string,provider:string,isDefault:boolean,scope:string}[]>([])
@@ -214,7 +203,7 @@ export default function ProjectVersionsPage() {
     }
   }
 
-  const fetchProject = async () => {
+  const fetchProject = useCallback(async () => {
     try {
       const response = await fetch(`/api/projects/${projectId}`)
       if (!response.ok) {
@@ -222,13 +211,20 @@ export default function ProjectVersionsPage() {
       }
       const data = await response.json()
       setProject(data)
-    } catch (error) {
+    } catch {
       toast.error('获取项目详情失败')
       router.push('/projects')
     } finally {
       setLoading(false)
     }
-  }
+  }, [projectId, router])
+
+  useEffect(() => {
+    fetchProject()
+    fetchSystemConfig()
+    // 检测未完成上传
+    try { import('@/lib/client/resumable-upload').then(m => { const pendings = m.listPendingUploadSessions(); if (pendings.length > 0) { const w: any = typeof window !== 'undefined' ? (window as any) : {}; if (!w.__humPendingToastShown) { w.__humPendingToastShown = true; toast.info(`检测到 ${pendings.length} 个未完成的上传，选择相同文件后可继续。`, { id: 'pending-uploads' }); setTimeout(() => { try { if (w) w.__humPendingToastShown = false } catch {} }, 2000); } } }) } catch {}
+  }, [fetchProject, fetchSystemConfig])
 
   const handleCreateVersion = async () => {
     if (!formData.version) {
@@ -255,6 +251,10 @@ export default function ProjectVersionsPage() {
       let downloadUrls: string[] = []
       let downloadUrl = ''
       let md5 = ''
+      let uploadedSize: number | undefined
+      let storageProvider: string | null = null
+      let objectKey: string | null = null
+      let storageConfigId: string | null = null
       let storageProviders: { type: string | undefined; name: string; configId: any; objectKey: any }[] = []
       // 如果是文件上传
       if (formData.uploadMethod === 'file' && formData.file) {
@@ -292,10 +292,10 @@ export default function ProjectVersionsPage() {
         downloadUrl = downloadUrls[0]
         md5 = uploadResults[0]?.md5 || ''
         // 取第一条作为向后兼容单字段
-        var storageProvider = uploadResults[0]?.storageProvider
-        var objectKey = uploadResults[0]?.objectKey
-        var storageConfigId = uploadResults[0]?.storageConfigId
-        var uploadedSize = uploadResults[0]?.size as number | undefined
+        storageProvider = uploadResults[0]?.storageProvider ?? null
+        objectKey = uploadResults[0]?.objectKey ?? null
+        storageConfigId = uploadResults[0]?.storageConfigId ?? null
+        uploadedSize = uploadResults[0]?.size as number | undefined
         // 记录每条链接的“类型+名称”用于 UI 展示
         storageProviders = uploadResults.map(r => {
           const type = r.storageProvider as string | undefined
@@ -333,10 +333,10 @@ export default function ProjectVersionsPage() {
           forceUpdate: formData.forceUpdate,
           md5: md5,
           size: typeof uploadedSize === 'number' ? uploadedSize : undefined,
-          storageProvider: typeof storageProvider !== 'undefined' ? storageProvider : null,
-          objectKey: typeof objectKey !== 'undefined' ? objectKey : null,
-          storageConfigId: typeof storageConfigId !== 'undefined' ? storageConfigId : null,
-          storageProviders: typeof storageProviders !== 'undefined' ? storageProviders : []
+          storageProvider,
+          objectKey,
+          storageConfigId,
+          storageProviders
         })
       });
 
@@ -381,7 +381,7 @@ export default function ProjectVersionsPage() {
       const data = await response.json()
       toast.success(data.message)
       fetchProject()
-    } catch (error) {
+    } catch {
       toast.error('设置当前版本失败')
     } finally {
       setSettingCurrent(null)
@@ -440,7 +440,7 @@ export default function ProjectVersionsPage() {
 
       toast.success('版本已删除')
       fetchProject()
-    } catch (error) {
+    } catch {
       toast.error('删除版本失败')
     } finally {
       setDeleteVersion(null)

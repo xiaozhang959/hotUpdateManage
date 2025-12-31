@@ -6,7 +6,7 @@ import { ProjectsChart } from './charts/projects-chart'
 import { UserGrowthChart } from './charts/user-growth-chart'
 import { EmailStatsChart } from './charts/email-stats-chart'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Users, Activity, Mail, Package } from 'lucide-react'
+import { Activity, Package, Users } from 'lucide-react'
 
 interface StatsData {
   total: {

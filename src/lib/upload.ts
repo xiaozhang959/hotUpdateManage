@@ -38,16 +38,6 @@ export function validateFile(file: File): { valid: boolean; error?: string } {
     return { valid: false, error: `文件大小不能超过 ${MAX_FILE_SIZE / (1024 * 1024)}MB` };
   }
 
-  // 允许的文件类型
-  const allowedTypes = [
-    'application/zip',
-    'application/x-zip-compressed',
-    'application/x-rar-compressed',
-    'application/octet-stream',
-    'application/vnd.android.package-archive', // APK
-    'application/x-msdownload', // EXE
-    'application/x-apple-diskimage', // DMG
-  ];
 
   const allowedExtensions = ['.zip', '.rar', '.apk', '.exe', '.dmg', '.tar', '.gz', '.7z', '.jar', '.lrj'];
   const ext = path.extname(file.name).toLowerCase();

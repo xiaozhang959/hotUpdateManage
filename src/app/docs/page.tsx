@@ -2,21 +2,20 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { redirect, useRouter } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { NavBar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { Copy, ChevronRight, Key, Package, Rocket, Shield, FileText, Code2, ArrowLeft, ChevronUp, ChevronDown } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, Code2, Copy, FileText, Key, Package, Rocket, Shield } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function DocsPage() {
   const { data: session, status } = useSession()
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
   const [showScrollButtons, setShowScrollButtons] = useState(false)
-  const router = useRouter()
 
   useEffect(() => {
     if (status === 'loading') return

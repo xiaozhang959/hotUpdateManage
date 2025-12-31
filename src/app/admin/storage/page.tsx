@@ -1,9 +1,9 @@
 "use client"
 "use client"
-import { useEffect, useState } from 'react'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, Input, Label, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, Table, TableHeader, TableRow, TableHead, TableBody, TableCell, Separator, InfoHint } from '@/components/ui'
+import { useCallback, useEffect, useState } from 'react'
+import { Badge, Button, Card, CardContent, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, InfoHint, Input, Label, Separator, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui'
 import { toast } from 'sonner'
-import { Plus, Trash2, Save, RefreshCw, CheckCircle2, XCircle } from 'lucide-react'
+import { Plus, RefreshCw, Save, Trash2 } from 'lucide-react'
 
 type Provider = 'LOCAL'|'WEBDAV'|'S3'|'OSS'
 
@@ -27,7 +27,7 @@ export default function AdminStoragePage() {
   const [form, setForm] = useState<any>({ id: '', name: '', provider: 'LOCAL' as Provider, isDefault: false, config: {}, scope: 'global' as 'global'|'user' })
   const [viewScope, setViewScope] = useState<'global'|'user'>('global')
 
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch(`/api/admin/storage-configs?scope=${viewScope}`)
@@ -35,9 +35,14 @@ export default function AdminStoragePage() {
       setItems(data.data || [])
     } catch {
       toast.error('获取列表失败')
-    } finally { setLoading(false) }
-  }
-  useEffect(() => { fetchItems() }, [viewScope])
+    } finally {
+      setLoading(false)
+    }
+  }, [viewScope])
+
+  useEffect(() => {
+    fetchItems()
+  }, [fetchItems])
 
   const providerFields = (p: Provider) => {
     switch (p) {
@@ -196,25 +201,39 @@ export default function AdminStoragePage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map(it => (
-                <TableRow key={it.id}>
-                  <TableCell className="font-medium">{it.name}</TableCell>
-                  <TableCell>{it.provider}</TableCell>
-                  <TableCell>
-                    {it.userId ? (
-                      <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-300">仅我</Badge>
-                    ) : (
-                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300">全局</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>{it.isDefault ? <Badge variant="outline">默认</Badge> : '-'}</TableCell>
-                  <TableCell>{new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai'), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date(it.createdAt))}</TableCell>
-                  <TableCell className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={()=>{ setForm({ id:it.id, name:it.name, provider: it.provider as Provider, isDefault: it.isDefault, config: JSON.parse(it.configJson||'{}') }); setOpen(true) }}>编辑</Button>
-                    <Button size="sm" variant="ghost" className="text-red-600" onClick={()=>remove(it.id)}><Trash2 className="h-4 w-4"/></Button>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-sm text-gray-500">
+                    加载中...
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : items.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-sm text-gray-500">
+                    暂无配置
+                  </TableCell>
+                </TableRow>
+              ) : (
+                items.map(it => (
+                  <TableRow key={it.id}>
+                    <TableCell className="font-medium">{it.name}</TableCell>
+                    <TableCell>{it.provider}</TableCell>
+                    <TableCell>
+                      {it.userId ? (
+                        <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-300">仅我</Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300">全局</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>{it.isDefault ? <Badge variant="outline">默认</Badge> : '-'}</TableCell>
+                    <TableCell>{new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai'), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date(it.createdAt))}</TableCell>
+                    <TableCell className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={()=>{ setForm({ id:it.id, name:it.name, provider: it.provider as Provider, isDefault: it.isDefault, config: JSON.parse(it.configJson||'{}') }); setOpen(true) }}>编辑</Button>
+                      <Button size="sm" variant="ghost" className="text-red-600" onClick={()=>remove(it.id)}><Trash2 className="h-4 w-4"/></Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

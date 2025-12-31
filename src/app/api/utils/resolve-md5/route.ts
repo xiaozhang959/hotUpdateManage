@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: '无法自动获取MD5（可能无可用ETag或文件过大）' }, { status: 200 })
     }
     return NextResponse.json({ success: true, md5: result.md5, from: result.from })
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: '解析MD5失败' }, { status: 500 })
   }
 }

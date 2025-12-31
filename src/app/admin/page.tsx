@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import Link from 'next/link'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Footer } from '@/components/layout/footer'
 import {
   Button,
@@ -68,13 +67,11 @@ import {
   Copy,
   Check,
   Search,
-  Filter,
   RefreshCw,
   Plus,
   AlertCircle,
   CheckCircle,
   ExternalLink,
-  Hash,
   ArrowUpDown,
 } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/timezone'
@@ -176,15 +173,6 @@ export default function AdminPage() {
   const [uploading, setUploading] = useState(false)
   const [uploadProg, setUploadProg] = useState({ percent: 0, uploadedBytes: 0, totalBytes: 0, uploadedParts: 0, totalParts: 0, resumed: false, strategy: '' as 'S3_MULTIPART' | 'SERVER_CHUNK' | 'SINGLE' | '', retryAttempt: 0, retryDelayMs: 0 })
   const uploaderRef = useRef<any>(null)
-  const [resumeDialogOpen, setResumeDialogOpen] = useState(false)
-  const [pendingSessions, setPendingSessions] = useState<{ key: string; meta: any }[]>([])
-  const refreshPending = async () => {
-    try {
-      const m = await import('@/lib/client/resumable-upload')
-      if (managingVersions?.id) setPendingSessions(m.listPendingSessionsByProject(managingVersions.id))
-    } catch {}
-  }
-
   const formatBytes = (n: number) => {
     if (!Number.isFinite(n)) return '0 B'
     const units = ['B','KB','MB','GB','TB']
@@ -193,6 +181,61 @@ export default function AdminPage() {
     return `${n % 1 === 0 ? n : n.toFixed(1)} ${units[i]}`
   }
   const [systemConfig, setSystemConfig] = useState<any>(null)
+
+  const fetchSystemConfig = useCallback(async () => {
+    try {
+      const response = await fetch('/api/system/config')
+      if (response.ok) {
+        const config = await response.json()
+        setSystemConfig(config)
+        // 如果文件上传被禁用，确保表单不会处于 file 模式
+        if (!config.upload_enabled) {
+          setAddVersionForm(prev => {
+            if (prev.uploadMethod !== 'file') return prev
+            return { ...prev, uploadMethod: 'url', file: null }
+          })
+        }
+      }
+    } catch (error) {
+      console.error('获取系统配置失败:', error)
+    }
+  }, [])
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const response = await fetch('/api/admin/users')
+      if (!response.ok) {
+        if (response.status === 403) {
+          toast.error('您没有管理员权限')
+          return
+        }
+        throw new Error('获取用户列表失败')
+      }
+      const data = await response.json()
+      setUsers(data)
+    } catch {
+      toast.error('获取用户列表失败')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const fetchProjects = useCallback(async () => {
+    try {
+      const response = await fetch('/api/admin/projects')
+      if (!response.ok) {
+        if (response.status === 403) {
+          toast.error('您没有管理员权限')
+          return
+        }
+        throw new Error('获取项目列表失败')
+      }
+      const data = await response.json()
+      setProjects(data)
+    } catch {
+      toast.error('获取项目列表失败')
+    }
+  }, [])
 
   useEffect(() => {
     fetchUsers()
@@ -206,59 +249,7 @@ export default function AdminPage() {
         }
       })
     } catch {}
-  }, [])
-
-  const fetchSystemConfig = async () => {
-    try {
-      const response = await fetch('/api/system/config')
-      if (response.ok) {
-        const config = await response.json()
-        setSystemConfig(config)
-        // 如果文件上传被禁用，默认选择URL方式
-        if (!config.upload_enabled && addVersionForm.uploadMethod === 'file') {
-          setAddVersionForm(prev => ({ ...prev, uploadMethod: 'url' }))
-        }
-      }
-    } catch (error) {
-      console.error('获取系统配置失败:', error)
-    }
-  }
-
-  const fetchUsers = async () => {
-    try {
-      const response = await fetch('/api/admin/users')
-      if (!response.ok) {
-        if (response.status === 403) {
-          toast.error('您没有管理员权限')
-          return
-        }
-        throw new Error('获取用户列表失败')
-      }
-      const data = await response.json()
-      setUsers(data)
-    } catch (error) {
-      toast.error('获取用户列表失败')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchProjects = async () => {
-    try {
-      const response = await fetch('/api/admin/projects')
-      if (!response.ok) {
-        if (response.status === 403) {
-          toast.error('您没有管理员权限')
-          return
-        }
-        throw new Error('获取项目列表失败')
-      }
-      const data = await response.json()
-      setProjects(data)
-    } catch (error) {
-      toast.error('获取项目列表失败')
-    }
-  }
+  }, [fetchUsers, fetchProjects, fetchSystemConfig])
 
   const handleEditUser = async () => {
     if (!editUser) return
@@ -378,7 +369,7 @@ export default function AdminPage() {
       setCopiedApiKey(apiKey)
       toast.success('API Key 已复制到剪贴板')
       setTimeout(() => setCopiedApiKey(null), 2000)
-    } catch (error) {
+    } catch {
       toast.error('复制失败')
     }
   }
@@ -433,7 +424,7 @@ export default function AdminPage() {
         throw new Error('重置API密钥失败')
       }
 
-      const data = await response.json()
+      await response.json()
       toast.success('API密钥已重置成功')
       fetchProjects()
       setResetApiKeyProject(null)
@@ -464,11 +455,12 @@ export default function AdminPage() {
     try {
       let downloadUrl = addVersionForm.downloadUrl
       let md5 = ''
+      let uploadedSize: number | undefined
 
       // 如果是文件上传
       if (addVersionForm.uploadMethod === 'file' && addVersionForm.file) {
         setUploading(true)
-        const { startResumableUpload, checkPendingForFile } = await import('@/lib/client/resumable-upload')
+        const { startResumableUpload } = await import('@/lib/client/resumable-upload')
         setUploadProg({ percent: 0, uploadedBytes: 0, totalBytes: addVersionForm.file.size, uploadedParts: 0, totalParts: 0, resumed: false, strategy: '', retryAttempt: 0, retryDelayMs: 0 })
         const uploader = startResumableUpload({
           file: addVersionForm.file,
@@ -487,7 +479,7 @@ export default function AdminPage() {
         const uploadResult = await uploader.promise
         downloadUrl = uploadResult.url
         md5 = uploadResult.md5
-        var uploadedSize = uploadResult.size as number | undefined
+        uploadedSize = uploadResult.size as number | undefined
         setUploading(false)
         uploaderRef.current = null
       }
@@ -682,10 +674,55 @@ export default function AdminPage() {
         <TabsContent value="users">
           <Card>
             <CardHeader>
-              <CardTitle>用户管理</CardTitle>
-              <CardDescription>
-                查看和管理所有注册用户
-              </CardDescription>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>用户管理</CardTitle>
+                    <CardDescription className="mt-1">
+                      查看和管理所有注册用户
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchUsers}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    刷新
+                  </Button>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="搜索用户名或邮箱..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <select
+                      className="px-3 py-2 border rounded-md text-sm"
+                      value={userFilter}
+                      onChange={(e) => setUserFilter(e.target.value as any)}
+                    >
+                      <option value="all">所有角色</option>
+                      <option value="admin">管理员</option>
+                      <option value="user">普通用户</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 text-sm text-gray-500">
+                  <span>共 {filteredUsers.length} 个用户</span>
+                  <Separator orientation="vertical" className="h-4" />
+                  <span>{users.filter(u => u.role === 'ADMIN').length} 个管理员</span>
+                  <Separator orientation="vertical" className="h-4" />
+                  <span>{users.filter(u => u.role !== 'ADMIN').length} 个普通用户</span>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -700,7 +737,7 @@ export default function AdminPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
+                  {filteredUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.username}</TableCell>
                       <TableCell>

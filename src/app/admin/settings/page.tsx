@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Footer } from '@/components/layout/footer'
 import {
@@ -20,22 +20,16 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
-  Separator
+  AlertDialogTitle
 } from '@/components/ui'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import {
-  Settings,
-  Upload,
-  Shield,
-  Users,
   Save,
   RotateCcw,
   Loader2,
   Info,
   AlertCircle,
-  Check,
   X,
   FileUp,
   UserPlus,
@@ -97,7 +91,6 @@ export default function SystemSettingsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [configs, setConfigs] = useState<ConfigItem[]>([])
   const [groupedConfigs, setGroupedConfigs] = useState<GroupedConfigs>({})
   const [modifiedConfigs, setModifiedConfigs] = useState<Record<string, any>>({})
   const [resetCategory, setResetCategory] = useState<string | null>(null)
@@ -106,11 +99,7 @@ export default function SystemSettingsPage() {
   const [testingEmail, setTestingEmail] = useState(false)
   const [testEmailAddress, setTestEmailAddress] = useState('')
 
-  useEffect(() => {
-    fetchConfigs()
-  }, [])
-
-  const fetchConfigs = async () => {
+  const fetchConfigs = useCallback(async () => {
     try {
       const response = await fetch('/api/admin/system/config')
       if (!response.ok) {
@@ -122,14 +111,17 @@ export default function SystemSettingsPage() {
         throw new Error('获取配置失败')
       }
       const data = await response.json()
-      setConfigs(data.configs || [])
       setGroupedConfigs(data.groupedConfigs || {})
-    } catch (error) {
+    } catch {
       toast.error('获取系统配置失败')
     } finally {
       setLoading(false)
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    fetchConfigs()
+  }, [fetchConfigs])
 
   const handleConfigChange = async (key: string, value: any, type: string) => {
     // 特殊处理：启用邮箱验证前检查SMTP配置
@@ -248,7 +240,7 @@ export default function SystemSettingsPage() {
         setModifiedConfigs({})
         fetchConfigs()
       }
-    } catch (error) {
+    } catch {
       toast.error('保存配置失败')
     } finally {
       setSaving(false)
@@ -268,7 +260,7 @@ export default function SystemSettingsPage() {
       toast.success(`${categoryInfo[category as keyof typeof categoryInfo]?.title || category} 已重置为默认值`)
       setModifiedConfigs({})
       fetchConfigs()
-    } catch (error) {
+    } catch {
       toast.error('重置配置失败')
     } finally {
       setResetCategory(null)
@@ -304,7 +296,7 @@ export default function SystemSettingsPage() {
       } else {
         toast.error(data.message)
       }
-    } catch (error) {
+    } catch {
       toast.error('测试失败')
     } finally {
       setTestingEmail(false)

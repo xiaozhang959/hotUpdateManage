@@ -41,7 +41,7 @@ class SystemConfigCache {
         await this.redis.connect()
         console.log('[ConfigCache] Redis连接成功，使用分布式配置缓存')
       }
-    } catch (error) {
+    } catch {
       console.log('[ConfigCache] Redis连接失败，使用内存配置缓存')
       this.redis = undefined
     }

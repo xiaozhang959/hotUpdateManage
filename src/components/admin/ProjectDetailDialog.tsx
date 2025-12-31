@@ -39,14 +39,10 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
 import {
-  Key,
   Copy,
   Check,
   RefreshCw,
   GitBranch,
-  Clock,
-  User,
-  Calendar,
   Package,
   AlertCircle,
   CheckCircle,
@@ -54,9 +50,7 @@ import {
   Edit,
   Plus,
   Loader2,
-  Download,
   ExternalLink,
-  FileText,
   Upload
 } from 'lucide-react'
 
@@ -145,7 +139,7 @@ export function ProjectDetailDialog({
       setCopiedApiKey(true)
       toast.success('API Key 已复制到剪贴板')
       setTimeout(() => setCopiedApiKey(false), 2000)
-    } catch (error) {
+    } catch {
       toast.error('复制失败')
     }
   }
@@ -161,11 +155,11 @@ export function ProjectDetailDialog({
         throw new Error('重置API密钥失败')
       }
 
-      const data = await response.json()
+      await response.json()
       toast.success('API密钥已重置')
       setShowResetConfirm(false)
       onUpdate()
-    } catch (error) {
+    } catch {
       toast.error('重置API密钥失败')
     } finally {
       setResettingApiKey(false)
@@ -190,7 +184,7 @@ export function ProjectDetailDialog({
 
       toast.success('当前版本已更新')
       onUpdate()
-    } catch (error) {
+    } catch {
       toast.error('设置当前版本失败')
     } finally {
       setSettingCurrent(null)
@@ -211,7 +205,7 @@ export function ProjectDetailDialog({
 
       toast.success('版本已删除')
       onUpdate()
-    } catch (error) {
+    } catch {
       toast.error('删除版本失败')
     } finally {
       setDeletingVersion(null)
@@ -240,7 +234,7 @@ export function ProjectDetailDialog({
       setVersionForm({ version: '', downloadUrl: '', changelog: '', forceUpdate: false })
       setShowVersionForm(false)
       onUpdate()
-    } catch (error) {
+    } catch {
       toast.error('添加版本失败')
     } finally {
       setAddingVersion(false)

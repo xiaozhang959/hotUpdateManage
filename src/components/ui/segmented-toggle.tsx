@@ -19,7 +19,6 @@ export function SegmentedToggle({
   className?: string
 }) {
   const isRight = value === right.value
-  const warm = '#f54900'
   return (
     <div className={`relative grid grid-cols-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-0.5 ${className}`} role="tablist" aria-label="切换上传方式">
       {/* 动画指示器 */}

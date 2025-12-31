@@ -106,8 +106,6 @@ export async function GET(request: Request) {
         
         // 用户增长数据
         const userGrowthData = []
-        let cumulativeUsers = 0
-        
         for (let i = 6; i >= 0; i--) {
           const date = new Date()
           date.setDate(date.getDate() - i)
@@ -120,8 +118,6 @@ export async function GET(request: Request) {
               }
             }
           })
-          
-          cumulativeUsers += dailyUsers
           
           userGrowthData.push({
             date: date.toISOString().split('T')[0],

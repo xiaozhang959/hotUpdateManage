@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,7 +11,6 @@ import { toast } from 'sonner'
 import { Loader2, Mail, ArrowLeft, CheckCircle } from 'lucide-react'
 
 export default function ForgotPasswordPage() {
-  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [email, setEmail] = useState('')
@@ -46,7 +44,7 @@ export default function ForgotPasswordPage() {
           })
         }
       }
-    } catch (error) {
+    } catch {
       toast.error('请求失败', {
         description: '请检查网络连接'
       })

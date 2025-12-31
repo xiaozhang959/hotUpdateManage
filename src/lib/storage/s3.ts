@@ -85,6 +85,7 @@ export function createS3Provider(raw: Partial<S3Config>): StorageProvider {
     ,
     async deleteObject({ projectId, objectKey }: { projectId: string; objectKey: string }): Promise<boolean> {
       try {
+        void projectId
         const { S3Client, DeleteObjectCommand } = await import('@aws-sdk/client-s3')
         const client = new S3Client({
           region: cfg.region,

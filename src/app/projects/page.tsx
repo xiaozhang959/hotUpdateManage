@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Footer } from '@/components/layout/footer'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -12,7 +11,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
   Dialog,
@@ -24,12 +22,6 @@ import {
   DialogTrigger,
   Input,
   Label,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   Badge,
   AlertDialog,
   AlertDialogAction,
@@ -59,10 +51,8 @@ import {
   AlertCircle,
   X,
   Edit,
-  RefreshCw
 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { FileUpload } from '@/components/ui/file-upload'
 
 interface Project {
@@ -82,7 +72,6 @@ interface Project {
 }
 
 export default function ProjectsPage() {
-  const router = useRouter()
   const { data: session } = useSession()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -119,9 +108,6 @@ export default function ProjectsPage() {
   const [uploading, setUploading] = useState(false)
   const [uploadProg, setUploadProg] = useState({ percent: 0, uploadedBytes: 0, totalBytes: 0, uploadedParts: 0, totalParts: 0, resumed: false, strategy: '' as 'S3_MULTIPART' | 'SERVER_CHUNK' | 'SINGLE' | '', retryAttempt: 0, retryDelayMs: 0 })
   const uploaderRef = useRef<any>(null)
-  const [resumeDialogOpen, setResumeDialogOpen] = useState(false)
-  const [pendingSessions, setPendingSessions] = useState<{ key: string; meta: any }[]>([])
-  const refreshPending = async () => { try { const m = await import('@/lib/client/resumable-upload'); if (uploadVersionDialog?.id) setPendingSessions(m.listPendingSessionsByProject(uploadVersionDialog.id)) } catch {} }
   const formatBytes = (n: number) => {
     if (!Number.isFinite(n)) return '0 B'
     const units = ['B','KB','MB','GB','TB']
@@ -169,9 +155,12 @@ export default function ProjectsPage() {
           setRequireEmailVerification(true)
         }
         setSystemConfig(data)
-        // 如果文件上传被禁用，默认选择URL方式
-        if (!data.upload_enabled && uploadForm.uploadMethod === 'file') {
-          setUploadForm(prev => ({ ...prev, uploadMethod: 'url' }))
+        // 如果文件上传被禁用，确保表单不会处于 file 模式
+        if (!data.upload_enabled) {
+          setUploadForm(prev => {
+            if (prev.uploadMethod !== 'file') return prev
+            return { ...prev, uploadMethod: 'url', file: null }
+          })
         }
       })
       .catch(() => {})
@@ -185,7 +174,7 @@ export default function ProjectsPage() {
       }
       const data = await response.json()
       setProjects(data)
-    } catch (error) {
+    } catch {
       toast.error('获取项目失败')
     } finally {
       setLoading(false)
@@ -226,7 +215,7 @@ export default function ProjectsPage() {
       setNewProjectName('')
       setDialogOpen(false)
       toast.success('项目创建成功')
-    } catch (error) {
+    } catch {
       toast.error('创建项目失败')
     } finally {
       setCreating(false)
@@ -247,7 +236,7 @@ export default function ProjectsPage() {
 
       setProjects(projects.filter(p => p.id !== deleteProject.id))
       toast.success('项目已删除')
-    } catch (error) {
+    } catch {
       toast.error('删除项目失败')
     } finally {
       setDeleteProject(null)
@@ -375,6 +364,9 @@ export default function ProjectsPage() {
       let downloadUrl = ''
       let md5 = ''
       let uploadedSize: number | undefined
+      let storageProvider: string | null = null
+      let objectKey: string | null = null
+      let storageConfigId: string | null = null
 
       let storageProviders: { type: string | undefined; name: string; configId: any; objectKey: any }[] = []
       // 如果是文件上传
@@ -409,9 +401,9 @@ export default function ProjectsPage() {
         downloadUrls = uploadResults.map(r => r.url)
         downloadUrl = downloadUrls[0]
         md5 = uploadResults[0]?.md5 || ''
-        var storageProvider = uploadResults[0]?.storageProvider
-        var objectKey = uploadResults[0]?.objectKey
-        var storageConfigId = uploadResults[0]?.storageConfigId
+        storageProvider = uploadResults[0]?.storageProvider ?? null
+        objectKey = uploadResults[0]?.objectKey ?? null
+        storageConfigId = uploadResults[0]?.storageConfigId ?? null
         uploadedSize = uploadResults[0]?.size as number | undefined
         storageProviders = uploadResults.map(r => {
           const type = r.storageProvider as string | undefined
@@ -447,10 +439,10 @@ export default function ProjectsPage() {
           forceUpdate: uploadForm.forceUpdate,
           md5: md5,
           size: typeof uploadedSize === 'number' ? uploadedSize : undefined,
-          storageProvider: typeof storageProvider !== 'undefined' ? storageProvider : null,
-          objectKey: typeof objectKey !== 'undefined' ? objectKey : null,
-          storageConfigId: typeof storageConfigId !== 'undefined' ? storageConfigId : null,
-          storageProviders: typeof storageProviders !== 'undefined' ? storageProviders : []
+          storageProvider,
+          objectKey,
+          storageConfigId,
+          storageProviders
         })
       })
 

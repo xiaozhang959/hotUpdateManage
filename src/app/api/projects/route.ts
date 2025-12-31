@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
-import { getConfig } from '@/lib/system-config'
 
 // 获取用户的所有项目
 export async function GET() {

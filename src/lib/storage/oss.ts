@@ -82,6 +82,7 @@ export function createOSSProvider(raw: Partial<OSSConfig>): StorageProvider {
     ,
     async deleteObject({ projectId, objectKey }: { projectId: string; objectKey: string }): Promise<boolean> {
       try {
+        void projectId
         const OSS = (await import('ali-oss')).default
         const client = new OSS({
           region: cfg.region,

@@ -81,7 +81,7 @@ export default function RegisterPage() {
           description: data.error || '请稍后重试'
         })
       }
-    } catch (error) {
+    } catch {
       toast.error('发送失败', {
         description: '请检查网络连接'
       })
@@ -142,7 +142,7 @@ export default function RegisterPage() {
           router.push('/login')
         }
       }
-    } catch (error) {
+    } catch {
       toast.error('注册失败', {
         description: '请稍后重试'
       })

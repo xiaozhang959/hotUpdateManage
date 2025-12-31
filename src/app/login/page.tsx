@@ -92,7 +92,7 @@ export default function LoginPage() {
         router.push('/dashboard')
         router.refresh()
       }
-    } catch (error) {
+    } catch {
       toast.error('登录失败', {
         description: '请稍后重试'
       })

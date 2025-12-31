@@ -31,7 +31,7 @@ export function encodeDownloadUrl(url: string): string {
     urlObj.pathname = encodedPathParts.join('/');
     
     return urlObj.toString();
-  } catch (e) {
+  } catch {
     // 如果不是有效的URL，尝试简单编码
     // 这种情况可能是相对路径
     if (url.startsWith('/')) {

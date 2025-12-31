@@ -144,7 +144,7 @@ export async function POST(
           md5Hash = resolved.md5
           md5Source = resolved.from || 'etag'
         }
-      } catch (e) {
+      } catch {
         // ignore, fallback below
       }
       if (!md5Hash) {

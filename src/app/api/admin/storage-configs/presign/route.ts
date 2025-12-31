@@ -28,9 +28,6 @@ export async function GET(req: NextRequest) {
 
     if (!objectKey) return NextResponse.json({ error: '缺少 object key' }, { status: 400 })
 
-    // 选择 provider（优先使用版本存储配置）
-    const { getProviderByConfigId } = await import('@/lib/storage')
-
     // 暂时仅支持 S3/OSS 生成预签名
     if (!providerName) providerName = 'S3'
 
