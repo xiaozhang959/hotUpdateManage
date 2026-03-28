@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateBearerToken } from '@/lib/auth-bearer'
 import { prisma } from '@/lib/prisma'
-import crypto from 'crypto'
+import {
+  generateAvailableProjectApiKey,
+  isProjectApiKeyTaken,
+  isProjectApiKeyUniqueConstraintError,
+  normalizeProjectApiKey,
+  validateProjectApiKey,
+} from '@/lib/server/project-api-key'
 
 // GET /api/v1/projects - Get all user's projects
 export async function GET(req: NextRequest) {
@@ -75,19 +81,39 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { name } = body
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    const customApiKey = normalizeProjectApiKey(body.apiKey)
 
-    if (!name || !name.trim()) {
+    if (!name) {
       return NextResponse.json(
         { error: 'Project name is required' },
         { status: 400 }
       )
     }
 
+    if (customApiKey) {
+      const apiKeyError = validateProjectApiKey(customApiKey)
+      if (apiKeyError) {
+        return NextResponse.json(
+          { error: apiKeyError },
+          { status: 400 }
+        )
+      }
+
+      if (await isProjectApiKeyTaken(customApiKey)) {
+        return NextResponse.json(
+          { error: 'Project API Key already exists' },
+          { status: 409 }
+        )
+      }
+    }
+
+    const apiKey = customApiKey || (await generateAvailableProjectApiKey())
+
     const project = await prisma.project.create({
       data: {
-        name: name.trim(),
-        apiKey: generateApiKey(),
+        name,
+        apiKey,
         userId: user.id
       },
       include: {
@@ -112,14 +138,15 @@ export async function POST(req: NextRequest) {
     })
   } catch (error) {
     console.error('Failed to create project:', error)
+    if (isProjectApiKeyUniqueConstraintError(error)) {
+      return NextResponse.json(
+        { error: 'Project API Key already exists' },
+        { status: 409 }
+      )
+    }
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
   }
-}
-
-
-function generateApiKey(): string {
-  return crypto.randomBytes(32).toString('hex')
 }

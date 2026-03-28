@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { generateApiKey } from '@/lib/crypto'
+import {
+  generateAvailableProjectApiKey,
+  isProjectApiKeyUniqueConstraintError,
+  PROJECT_API_KEY_CONFLICT_MESSAGE,
+} from '@/lib/server/project-api-key'
 
 // 重置项目API密钥（仅管理员）
 export async function POST(
@@ -26,7 +30,7 @@ export async function POST(
     }
 
     // 生成新的API密钥
-    const newApiKey = generateApiKey()
+    const newApiKey = await generateAvailableProjectApiKey(id)
 
     // 更新项目的API密钥
     const updatedProject = await prisma.project.update({
@@ -60,6 +64,12 @@ export async function POST(
     })
   } catch (error) {
     console.error('重置API密钥失败:', error)
+    if (isProjectApiKeyUniqueConstraintError(error)) {
+      return NextResponse.json(
+        { error: PROJECT_API_KEY_CONFLICT_MESSAGE },
+        { status: 409 },
+      )
+    }
     return NextResponse.json(
       { error: '重置API密钥失败' },
       { status: 500 }

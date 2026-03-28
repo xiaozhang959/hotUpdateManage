@@ -35,7 +35,7 @@ export default function Home() {
     {
       icon: Package2,
       title: '项目管理',
-      description: '轻松创建和管理多个项目，每个项目都有独立的API密钥和版本控制',
+      description: '轻松创建和管理多个项目，每个项目都支持独立且可自定义的 API 密钥与版本控制',
       color: 'from-blue-500 to-cyan-500'
     },
     {

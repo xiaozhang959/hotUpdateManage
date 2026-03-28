@@ -45,7 +45,7 @@ export default async function DashboardPage() {
               <Package className="h-10 w-10 text-orange-600 mb-2" />
               <CardTitle>项目管理</CardTitle>
               <CardDescription>
-                创建和管理您的项目，每个项目都有独立的API密钥
+                创建和管理您的项目，每个项目都支持独立且可自定义的 API 密钥
               </CardDescription>
             </CardHeader>
             <CardContent>

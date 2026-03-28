@@ -240,10 +240,11 @@ Location: https://storage.example.com/project/artifact.apk`
         {
           method: 'POST',
           path: '/api/v1/projects',
-          description: '创建新项目',
+          description: '创建新项目（支持自定义 API Key）',
           auth: 'Bearer Token',
           body: `{
-  "name": "项目名称"
+  "name": "项目名称",
+  "apiKey": "my-stable-project-key"
 }`,
           response: `{
   "success": true,

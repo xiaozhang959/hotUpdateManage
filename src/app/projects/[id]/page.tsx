@@ -23,7 +23,7 @@ export default function ProjectVersionsPage() {
             </Link>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">多架构版本工作台</h1>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              在一个逻辑版本里统一维护架构主程序、通用附件和默认架构下载策略。
+              在一个逻辑版本里统一维护架构主程序与默认架构下载策略。
             </p>
           </div>
         </div>

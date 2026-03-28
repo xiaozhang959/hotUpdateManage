@@ -177,7 +177,7 @@ export default function AdminPage() {
       <main className="container mx-auto flex-1 px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">管理员控制台</h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">统一管理系统用户、项目与多架构版本发布状态。</p>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">统一管理系统用户、项目 API Key 与多架构版本发布状态。</p>
         </div>
 
         <div className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">

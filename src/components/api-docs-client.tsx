@@ -70,7 +70,7 @@ export function ApiDocsClient({ apiEndpoints, codeExamples }: ApiDocsClientProps
           <div>
             <h3 className="font-semibold mb-2">1. 获取API密钥</h3>
             <p className="text-gray-600 dark:text-gray-400">
-              登录系统后，在项目管理页面创建项目，每个项目都会生成独立的API密钥。
+              登录系统后，在项目管理页面创建或编辑项目；您既可以沿用旧服务器上的 API Key，也可以留空让系统自动生成。
             </p>
           </div>
           <div>

@@ -124,10 +124,11 @@ export default function DocsPage() {
         {
           method: 'POST',
           path: '/api/v1/projects',
-          description: '创建新项目',
+          description: '创建新项目（支持自定义 API Key）',
           auth: 'Bearer Token',
           body: `{
-  "name": "项目名称"
+  "name": "项目名称",
+  "apiKey": "my-stable-project-key"
 }`,
           response: `{
   "success": true,
@@ -549,7 +550,7 @@ curl -X POST ${typeof window !== 'undefined' ? window.location.origin : 'https:/
                   <div>
                     <h4 className="font-semibold mb-1">创建项目</h4>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      通过 API 创建项目并获取项目 API Key
+                      通过 API 创建项目；可自定义项目 API Key，也可使用系统自动生成的值
                     </p>
                   </div>
                 </div>

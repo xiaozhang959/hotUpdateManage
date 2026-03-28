@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import crypto from 'crypto'
+import {
+  generateAvailableProjectApiKey,
+  isProjectApiKeyTaken,
+  isProjectApiKeyUniqueConstraintError,
+  normalizeProjectApiKey,
+  PROJECT_API_KEY_CONFLICT_MESSAGE,
+  validateProjectApiKey,
+} from '@/lib/server/project-api-key'
 import { ensureDefaultArchitecture, projectWithVersionDetailsInclude } from '@/lib/version-artifacts'
 import { serializeProjectSummary } from '@/lib/project-version-service'
 
@@ -40,17 +47,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: '未登录' }, { status: 401 })
     }
 
-    const { name } = await req.json()
+    const body = await req.json().catch(() => ({})) as {
+      name?: string
+      apiKey?: string
+    }
+    const name = body.name?.trim()
+    const customApiKey = normalizeProjectApiKey(body.apiKey)
 
-    if (!name || !name.trim()) {
+    if (!name) {
       return NextResponse.json({ error: '项目名称不能为空' }, { status: 400 })
     }
+
+    if (customApiKey) {
+      const apiKeyError = validateProjectApiKey(customApiKey)
+      if (apiKeyError) {
+        return NextResponse.json({ error: apiKeyError }, { status: 400 })
+      }
+
+      if (await isProjectApiKeyTaken(customApiKey)) {
+        return NextResponse.json(
+          { error: PROJECT_API_KEY_CONFLICT_MESSAGE },
+          { status: 409 },
+        )
+      }
+    }
+
+    const apiKey = customApiKey || (await generateAvailableProjectApiKey())
 
     const project = await prisma.$transaction(async (tx) => {
       const created = await tx.project.create({
         data: {
-          name: name.trim(),
-          apiKey: generateApiKey(),
+          name,
+          apiKey,
           userId: session.user.id,
         },
       })
@@ -64,10 +92,12 @@ export async function POST(req: Request) {
     return NextResponse.json(serializeProjectSummary(project), { status: 201 })
   } catch (error) {
     console.error('创建项目失败:', error)
+    if (isProjectApiKeyUniqueConstraintError(error)) {
+      return NextResponse.json(
+        { error: PROJECT_API_KEY_CONFLICT_MESSAGE },
+        { status: 409 },
+      )
+    }
     return NextResponse.json({ error: '创建项目失败' }, { status: 500 })
   }
-}
-
-function generateApiKey(): string {
-  return crypto.randomBytes(32).toString('hex')
 }

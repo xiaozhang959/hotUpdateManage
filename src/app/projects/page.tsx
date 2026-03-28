@@ -36,6 +36,12 @@ import {
 import { formatDateTime } from '@/lib/timezone'
 import type { ProjectSummaryItem } from '@/components/projects/project-types'
 
+function generateClientApiKey() {
+  const bytes = new Uint8Array(32)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
 export default function ProjectsPage() {
   const { data: session } = useSession()
   const [projects, setProjects] = useState<ProjectSummaryItem[]>([])
@@ -44,9 +50,10 @@ export default function ProjectsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
+  const [newProjectApiKey, setNewProjectApiKey] = useState('')
   const [editingProject, setEditingProject] = useState<ProjectSummaryItem | null>(null)
   const [editingName, setEditingName] = useState('')
-  const [regenerateKey, setRegenerateKey] = useState(false)
+  const [editingApiKey, setEditingApiKey] = useState('')
   const [savingProject, setSavingProject] = useState(false)
   const [deletingProject, setDeletingProject] = useState<ProjectSummaryItem | null>(null)
   const [showApiKeys, setShowApiKeys] = useState<Record<string, boolean>>({})
@@ -95,12 +102,16 @@ export default function ProjectsPage() {
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newProjectName.trim() }),
+        body: JSON.stringify({
+          name: newProjectName.trim(),
+          apiKey: newProjectApiKey.trim() || undefined,
+        }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data?.error || '创建项目失败')
       setProjects((current) => [data, ...current])
       setNewProjectName('')
+      setNewProjectApiKey('')
       setCreateOpen(false)
       toast.success('项目创建成功')
     } catch (error) {
@@ -116,26 +127,27 @@ export default function ProjectsPage() {
       toast.error('项目名称不能为空')
       return
     }
+    if (!editingApiKey.trim()) {
+      toast.error('API Key 不能为空')
+      return
+    }
 
     setSavingProject(true)
     try {
       const updateResponse = await fetch(`/api/projects/${editingProject.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editingName.trim() }),
+        body: JSON.stringify({
+          name: editingName.trim(),
+          apiKey: editingApiKey.trim(),
+        }),
       })
       const updateData = await updateResponse.json()
       if (!updateResponse.ok) throw new Error(updateData?.error || '更新项目失败')
 
-      if (regenerateKey) {
-        const keyResponse = await fetch(`/api/projects/${editingProject.id}/regenerate-key`, { method: 'POST' })
-        const keyData = await keyResponse.json()
-        if (!keyResponse.ok) throw new Error(keyData?.error || '重新生成 API Key 失败')
-      }
-
-      toast.success(regenerateKey ? '项目信息已更新，API Key 已重新生成' : '项目信息已更新')
+      toast.success('项目信息已更新')
       setEditingProject(null)
-      setRegenerateKey(false)
+      setEditingApiKey('')
       await fetchProjects()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '更新项目失败')
@@ -181,7 +193,7 @@ export default function ProjectsPage() {
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">项目管理</h1>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">在列表页关注项目状态，在详情页集中维护多架构版本。</p>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">在列表页关注项目状态与 API Key，在详情页集中维护多架构版本。</p>
           </div>
           <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" /> 创建项目</Button>
         </div>
@@ -208,7 +220,7 @@ export default function ProjectsPage() {
                       <CardDescription className="mt-2">当前版本：{project.currentVersion || '未设置'} · 最近更新时间：{formatDateTime(project.updatedAt)}</CardDescription>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="icon" onClick={() => { setEditingProject(project); setEditingName(project.name); setRegenerateKey(false) }}><Edit className="h-4 w-4" /></Button>
+                      <Button variant="outline" size="icon" onClick={() => { setEditingProject(project); setEditingName(project.name); setEditingApiKey(project.apiKey) }}><Edit className="h-4 w-4" /></Button>
                       <Button variant="outline" size="icon" className="border-red-200 text-red-600 hover:bg-red-50" onClick={() => setDeletingProject(project)}><Trash2 className="h-4 w-4" /></Button>
                     </div>
                   </div>
@@ -257,21 +269,38 @@ export default function ProjectsPage() {
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>创建新项目</DialogTitle><DialogDescription>输入项目名称后即可生成 API Key，并进入多架构版本管理流程。</DialogDescription></DialogHeader>
-          <div className="space-y-4 py-2"><div className="space-y-2"><Label htmlFor="project-name-create">项目名称</Label><Input id="project-name-create" value={newProjectName} onChange={(event) => setNewProjectName(event.target.value)} placeholder="我的 Android 应用" disabled={creating} /></div></div>
-          <DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>取消</Button><Button onClick={handleCreateProject} disabled={creating || !newProjectName.trim()} className="bg-orange-600 hover:bg-orange-700">{creating ? <Loader2 className="h-4 w-4 animate-spin" /> : '创建项目'}</Button></DialogFooter>
+          <DialogHeader><DialogTitle>创建新项目</DialogTitle><DialogDescription>输入项目名称，可选自定义 API Key；留空时系统会自动生成。</DialogDescription></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2"><Label htmlFor="project-name-create">项目名称</Label><Input id="project-name-create" value={newProjectName} onChange={(event) => setNewProjectName(event.target.value)} placeholder="我的 Android 应用" disabled={creating} /></div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="project-api-key-create">API Key（可选）</Label>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setNewProjectApiKey(generateClientApiKey())} disabled={creating}>生成随机值</Button>
+              </div>
+              <Input id="project-api-key-create" value={newProjectApiKey} onChange={(event) => setNewProjectApiKey(event.target.value)} placeholder="留空则自动生成，或输入旧服务器上的 API Key" disabled={creating} />
+              <p className="text-xs text-slate-500">若与现有项目重复，系统会拒绝创建并提示冲突。</p>
+            </div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => { setCreateOpen(false); setNewProjectApiKey('') }} disabled={creating}>取消</Button><Button onClick={handleCreateProject} disabled={creating || !newProjectName.trim()} className="bg-orange-600 hover:bg-orange-700">{creating ? <Loader2 className="h-4 w-4 animate-spin" /> : '创建项目'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingProject} onOpenChange={() => setEditingProject(null)}>
+      <Dialog open={!!editingProject} onOpenChange={() => { setEditingProject(null); setEditingApiKey('') }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>编辑项目</DialogTitle><DialogDescription>修改项目名称，并可按需重新生成 API Key。</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>编辑项目</DialogTitle><DialogDescription>修改项目名称与 API Key，便于迁移服务器后继续沿用原有标识。</DialogDescription></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2"><Label htmlFor="project-name-edit">项目名称</Label><Input id="project-name-edit" value={editingName} onChange={(event) => setEditingName(event.target.value)} disabled={savingProject} /></div>
             <Separator />
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" checked={regenerateKey} onChange={(event) => setRegenerateKey(event.target.checked)} /> 同时重新生成 API Key</label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="project-api-key-edit">API Key</Label>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setEditingApiKey(generateClientApiKey())} disabled={savingProject}>生成随机值</Button>
+              </div>
+              <Input id="project-api-key-edit" value={editingApiKey} onChange={(event) => setEditingApiKey(event.target.value)} disabled={savingProject} />
+              <p className="text-xs text-slate-500">保存时会校验唯一性；如果与其他项目重复，将直接拒绝。</p>
+            </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setEditingProject(null)} disabled={savingProject}>取消</Button><Button onClick={handleSaveProject} disabled={savingProject || !editingName.trim()} className="bg-orange-600 hover:bg-orange-700">{savingProject ? <Loader2 className="h-4 w-4 animate-spin" /> : '保存修改'}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => { setEditingProject(null); setEditingApiKey('') }} disabled={savingProject}>取消</Button><Button onClick={handleSaveProject} disabled={savingProject || !editingName.trim() || !editingApiKey.trim()} className="bg-orange-600 hover:bg-orange-700">{savingProject ? <Loader2 className="h-4 w-4 animate-spin" /> : '保存修改'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -3,6 +3,14 @@ import { auth } from '@/lib/auth'
 import { versionCache } from '@/lib/cache/version-cache'
 import { prisma } from '@/lib/prisma'
 import { cleanupArtifactFiles, serializeProjectDetail, setCurrentVersionById } from '@/lib/project-version-service'
+import {
+  isProjectApiKeyTaken,
+  isProjectApiKeyUniqueConstraintError,
+  normalizeProjectApiKey,
+  PROJECT_API_KEY_CONFLICT_MESSAGE,
+  PROJECT_API_KEY_REQUIRED_MESSAGE,
+  validateProjectApiKey,
+} from '@/lib/server/project-api-key'
 import { projectArchitectureOrder, versionArtifactInclude, versionArtifactsOrder } from '@/lib/version-artifacts'
 
 // 更新项目（仅管理员）
@@ -18,9 +26,36 @@ export async function PATCH(
       return NextResponse.json({ error: '无权限访问' }, { status: 403 })
     }
 
-    const body = await req.json().catch(() => ({})) as { name?: string; currentVersion?: string | null }
+    const body = await req.json().catch(() => ({})) as {
+      name?: string
+      apiKey?: string
+      currentVersion?: string | null
+    }
     const name = body.name?.trim()
+    const hasApiKeyField = Object.prototype.hasOwnProperty.call(body, 'apiKey')
+    const apiKey = normalizeProjectApiKey(body.apiKey)
     const currentVersion = body.currentVersion === undefined ? undefined : (body.currentVersion?.trim() || null)
+
+    if (hasApiKeyField) {
+      if (!apiKey) {
+        return NextResponse.json(
+          { error: PROJECT_API_KEY_REQUIRED_MESSAGE },
+          { status: 400 },
+        )
+      }
+
+      const apiKeyError = validateProjectApiKey(apiKey)
+      if (apiKeyError) {
+        return NextResponse.json({ error: apiKeyError }, { status: 400 })
+      }
+
+      if (await isProjectApiKeyTaken(apiKey, id)) {
+        return NextResponse.json(
+          { error: PROJECT_API_KEY_CONFLICT_MESSAGE },
+          { status: 409 },
+        )
+      }
+    }
 
     const project = await prisma.project.findUnique({
       where: { id },
@@ -35,10 +70,15 @@ export async function PATCH(
     }
 
     await prisma.$transaction(async (tx) => {
-      if (name) {
+      const projectChanges = {
+        ...(name ? { name } : {}),
+        ...(apiKey ? { apiKey } : {}),
+      }
+
+      if (Object.keys(projectChanges).length > 0) {
         await tx.project.update({
           where: { id },
-          data: { name },
+          data: projectChanges,
         })
       }
 
@@ -99,9 +139,19 @@ export async function PATCH(
 
     return NextResponse.json(updatedProject ? serializeProjectDetail(updatedProject) : null)
   } catch (error) {
-    const message = error instanceof Error ? error.message : '更新项目失败'
     console.error('更新项目失败:', error)
-    return NextResponse.json({ error: message }, { status: message.includes('不存在') ? 404 : 500 })
+    if (isProjectApiKeyUniqueConstraintError(error)) {
+      return NextResponse.json(
+        { error: PROJECT_API_KEY_CONFLICT_MESSAGE },
+        { status: 409 },
+      )
+    }
+
+    const message = error instanceof Error ? error.message : '更新项目失败'
+    return NextResponse.json(
+      { error: message },
+      { status: message.includes('不存在') ? 404 : 500 },
+    )
   }
 }
 

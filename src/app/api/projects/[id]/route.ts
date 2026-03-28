@@ -3,6 +3,14 @@ import { auth } from '@/lib/auth'
 import { versionCache } from '@/lib/cache/version-cache'
 import { prisma } from '@/lib/prisma'
 import { cleanupArtifactFiles, serializeProjectDetail } from '@/lib/project-version-service'
+import {
+  isProjectApiKeyTaken,
+  isProjectApiKeyUniqueConstraintError,
+  normalizeProjectApiKey,
+  PROJECT_API_KEY_CONFLICT_MESSAGE,
+  PROJECT_API_KEY_REQUIRED_MESSAGE,
+  validateProjectApiKey,
+} from '@/lib/server/project-api-key'
 import { projectWithVersionDetailsInclude, versionArtifactInclude, versionArtifactsOrder } from '@/lib/version-artifacts'
 
 // 获取项目详情
@@ -51,8 +59,34 @@ export async function PATCH(
       return NextResponse.json({ error: '未授权' }, { status: 401 })
     }
 
-    const body = await req.json().catch(() => ({})) as { name?: string }
+    const body = await req.json().catch(() => ({})) as {
+      name?: string
+      apiKey?: string
+    }
     const name = body.name?.trim()
+    const hasApiKeyField = Object.prototype.hasOwnProperty.call(body, 'apiKey')
+    const apiKey = normalizeProjectApiKey(body.apiKey)
+
+    if (hasApiKeyField) {
+      if (!apiKey) {
+        return NextResponse.json(
+          { error: PROJECT_API_KEY_REQUIRED_MESSAGE },
+          { status: 400 },
+        )
+      }
+
+      const apiKeyError = validateProjectApiKey(apiKey)
+      if (apiKeyError) {
+        return NextResponse.json({ error: apiKeyError }, { status: 400 })
+      }
+
+      if (await isProjectApiKeyTaken(apiKey, id)) {
+        return NextResponse.json(
+          { error: PROJECT_API_KEY_CONFLICT_MESSAGE },
+          { status: 409 },
+        )
+      }
+    }
 
     const project = await prisma.project.findFirst({
       where: {
@@ -70,6 +104,7 @@ export async function PATCH(
       where: { id },
       data: {
         ...(name ? { name } : {}),
+        ...(apiKey ? { apiKey } : {}),
       },
       include: projectWithVersionDetailsInclude,
     })
@@ -77,6 +112,12 @@ export async function PATCH(
     return NextResponse.json(serializeProjectDetail(updatedProject))
   } catch (error) {
     console.error('更新项目失败:', error)
+    if (isProjectApiKeyUniqueConstraintError(error)) {
+      return NextResponse.json(
+        { error: PROJECT_API_KEY_CONFLICT_MESSAGE },
+        { status: 409 },
+      )
+    }
     return NextResponse.json({ error: '更新项目失败' }, { status: 500 })
   }
 }
