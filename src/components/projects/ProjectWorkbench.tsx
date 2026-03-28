@@ -902,6 +902,13 @@ export function ProjectWorkbench({
     { id: null, name: '本地存储(内置)', provider: 'LOCAL', isDefault: true, scope: 'system' },
   ])
 
+  const applyProjectDetail = useCallback((data: ProjectDetailItem) => {
+    setProject(data)
+    setProjectName(data.name)
+    setProjectApiKey(data.apiKey)
+    onProjectMutated?.(data)
+  }, [onProjectMutated])
+
   const fetchProject = useCallback(async (silent = false) => {
     if (!silent) {
       setLoading(true)
@@ -910,13 +917,10 @@ export function ProjectWorkbench({
     }
 
     try {
-      const response = await fetch(`${apiBase}/${projectId}`)
+      const response = await fetch(`${apiBase}/${projectId}`, { cache: 'no-store' })
       const data = await readJson<any>(response)
       if (!response.ok) throw new Error(data?.error || '获取项目详情失败')
-      setProject(data)
-      setProjectName(data.name)
-      setProjectApiKey(data.apiKey)
-      onProjectMutated?.(data)
+      applyProjectDetail(data)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '获取项目详情失败')
       setProject(null)
@@ -924,7 +928,7 @@ export function ProjectWorkbench({
       setLoading(false)
       setRefreshing(false)
     }
-  }, [apiBase, projectId, onProjectMutated])
+  }, [apiBase, projectId, applyProjectDetail])
 
   const fetchStorages = useCallback(async () => {
     try {
@@ -967,8 +971,8 @@ export function ProjectWorkbench({
       })
       const data = await readJson<any>(response)
       if (!response.ok) throw new Error(data?.error || '更新项目失败')
+      applyProjectDetail(data)
       toast.success('项目信息已更新')
-      await fetchProject(true)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '更新项目失败')
     } finally {
