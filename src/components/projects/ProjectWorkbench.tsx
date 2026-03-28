@@ -314,25 +314,22 @@ function UploadMethodSelector({
   const options: Array<{
     value: UploadMethod
     title: string
-    description: string
     icon: typeof Link2
   }> = [
     {
       value: 'url',
-      title: '链接地址',
-      description: '保留现成下载链接，适合已发布到 CDN 或对象存储的文件。',
+      title: '链接',
       icon: Link2,
     },
     {
       value: 'file',
       title: '上传文件',
-      description: '直接上传到当前存储目标，适合集中托管版本包。',
       icon: Upload,
     },
   ]
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5">
       {options.map((option) => {
         const selected = value === option.value
         const Icon = option.icon
@@ -343,27 +340,13 @@ function UploadMethodSelector({
             type="button"
             onClick={() => onChange(option.value)}
             disabled={disabled}
-            className={`group rounded-2xl border px-4 py-4 text-left transition-all ${selected
-              ? 'border-orange-300 bg-gradient-to-br from-orange-50 via-white to-amber-50 shadow-[0_18px_36px_-28px_rgba(245,73,0,0.75)]'
-              : 'border-slate-200 bg-slate-50/80 hover:border-orange-200 hover:bg-white'} ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+            className={`inline-flex h-12 items-center justify-center gap-2 rounded-xl border text-sm font-medium transition-all ${selected
+              ? 'border-orange-200 bg-white text-orange-700 shadow-sm'
+              : 'border-transparent bg-transparent text-slate-600 hover:bg-white/80'} ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
             aria-pressed={selected}
           >
-            <div className="flex items-start gap-3">
-              <span className={`mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition-colors ${selected
-                ? 'border-orange-200 bg-orange-500 text-white'
-                : 'border-slate-200 bg-white text-slate-500 group-hover:border-orange-200 group-hover:text-orange-500'}`}
-              >
-                <Icon className="h-5 w-5" />
-              </span>
-              <span className="min-w-0">
-                <span className={`block text-sm font-semibold ${selected ? 'text-orange-700' : 'text-slate-900'}`}>
-                  {option.title}
-                </span>
-                <span className="mt-1 block text-xs leading-5 text-slate-500">
-                  {option.description}
-                </span>
-              </span>
-            </div>
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{option.title}</span>
           </button>
         )
       })}
@@ -772,7 +755,7 @@ function VersionDialog({
 
                     {artifact.enabled && (
                       <div className="mt-5 rounded-[22px] border border-white/80 bg-white/85 p-4 sm:p-5">
-                        <div className="grid gap-5 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+                        <div className="space-y-5">
                           <div className="space-y-2">
                             <Label>显示名称</Label>
                             <Input
@@ -794,63 +777,65 @@ function VersionDialog({
                               disabled={submitting}
                             />
                           </div>
-                        </div>
 
-                        {artifact.uploadMethod === 'url' ? (
-                          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)]">
-                            <div className="space-y-2">
-                              <Label>下载地址</Label>
-                              <Input
-                                value={artifact.downloadUrl}
-                                onChange={(event) => patchPrimary(artifact.architectureKey, { downloadUrl: event.target.value })}
-                                placeholder="https://example.com/app-arm64.apk"
-                                disabled={submitting}
-                                className="h-12 rounded-2xl border-slate-200"
-                              />
+                          {artifact.uploadMethod === 'url' ? (
+                            <>
+                              <div className="space-y-2">
+                                <Label>下载地址</Label>
+                                <Input
+                                  value={artifact.downloadUrl}
+                                  onChange={(event) => patchPrimary(artifact.architectureKey, { downloadUrl: event.target.value })}
+                                  placeholder="https://example.com/app-arm64.apk"
+                                  disabled={submitting}
+                                  className="h-12 rounded-2xl border-slate-200"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>MD5（可选）</Label>
+                                <Input
+                                  value={artifact.md5}
+                                  onChange={(event) => patchPrimary(artifact.architectureKey, { md5: event.target.value.trim() })}
+                                  placeholder="32位十六进制"
+                                  disabled={submitting}
+                                  className="h-12 rounded-2xl border-slate-200"
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            <div className="grid items-start gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
+                              <div className="space-y-2">
+                                <Label>选择文件</Label>
+                                <FileUpload
+                                  variant="square"
+                                  className="max-w-[220px]"
+                                  selectedFile={artifact.file}
+                                  onFileSelect={(file) => patchPrimary(artifact.architectureKey, { file })}
+                                  onFileRemove={() => patchPrimary(artifact.architectureKey, { file: null })}
+                                  uploading={submitting}
+                                  disabled={submitting}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>目标存储</Label>
+                                <select
+                                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
+                                  value={storageValueOf(artifact.storageConfigId)}
+                                  onChange={(event) => patchPrimary(artifact.architectureKey, { storageConfigId: storageIdFromValue(event.target.value) })}
+                                  disabled={submitting}
+                                >
+                                  {availableStorages.map((storage) => (
+                                    <option key={storageValueOf(storage.id)} value={storageValueOf(storage.id)}>
+                                      {formatStorageOptionLabel(storage, apiScope)}
+                                    </option>
+                                  ))}
+                                </select>
+                                <p className="text-xs leading-5 text-slate-500">
+                                  上传完成后会自动回填体积、MD5 和存储信息。
+                                </p>
+                              </div>
                             </div>
-                            <div className="space-y-2">
-                              <Label>MD5（可选）</Label>
-                              <Input
-                                value={artifact.md5}
-                                onChange={(event) => patchPrimary(artifact.architectureKey, { md5: event.target.value.trim() })}
-                                placeholder="32位十六进制"
-                                disabled={submitting}
-                                className="h-12 rounded-2xl border-slate-200"
-                              />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)]">
-                            <div className="space-y-2">
-                              <Label>选择文件</Label>
-                              <FileUpload
-                                selectedFile={artifact.file}
-                                onFileSelect={(file) => patchPrimary(artifact.architectureKey, { file })}
-                                onFileRemove={() => patchPrimary(artifact.architectureKey, { file: null })}
-                                uploading={submitting}
-                                disabled={submitting}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>目标存储</Label>
-                              <select
-                                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
-                                value={storageValueOf(artifact.storageConfigId)}
-                                onChange={(event) => patchPrimary(artifact.architectureKey, { storageConfigId: storageIdFromValue(event.target.value) })}
-                                disabled={submitting}
-                              >
-                                {availableStorages.map((storage) => (
-                                  <option key={storageValueOf(storage.id)} value={storageValueOf(storage.id)}>
-                                    {formatStorageOptionLabel(storage, apiScope)}
-                                  </option>
-                                ))}
-                              </select>
-                              <p className="text-xs leading-5 text-slate-500">
-                                文件上传完成后会自动回填体积、MD5 和存储信息。
-                              </p>
-                            </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

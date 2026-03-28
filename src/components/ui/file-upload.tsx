@@ -33,6 +33,7 @@ interface FileUploadProps {
   uploading?: boolean
   className?: string
   disabled?: boolean
+  variant?: 'default' | 'square'
 }
 
 export function FileUpload({
@@ -43,12 +44,14 @@ export function FileUpload({
   maxSize = 100 * 1024 * 1024, // 100MB default
   uploading = false,
   className,
-  disabled = false
+  disabled = false,
+  variant = 'default',
 }: FileUploadProps) {
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
+  const isSquare = variant === 'square'
 
   // 根据文件扩展名获取图标
   const getFileIcon = (fileName: string) => {
@@ -167,7 +170,8 @@ export function FileUpload({
           dragActive ? "border-orange-500 bg-orange-50 dark:bg-orange-900/10" : "border-gray-300 dark:border-gray-700",
           disabled || uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-orange-400",
           error ? "border-red-500" : "",
-          "focus-within:outline-none focus-within:ring-2 focus-within:ring-orange-500 focus-within:ring-offset-2"
+          "focus-within:outline-none focus-within:ring-2 focus-within:ring-orange-500 focus-within:ring-offset-2",
+          isSquare && "aspect-square"
         )}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
@@ -187,36 +191,14 @@ export function FileUpload({
 
         {selectedFile ? (
           // 已选择文件的显示
-          <div className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3 flex-1">
-                <div className={cn(
-                  "p-2 rounded-lg",
-                  uploading ? "bg-orange-100 dark:bg-orange-900/20" : "bg-gray-100 dark:bg-gray-800"
-                )}>
-                  {uploading ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
-                  ) : (
-                    <div className="text-gray-600 dark:text-gray-400">
-                      {getFileIcon(selectedFile.name)}
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                    {selectedFile.name}
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {formatFileSize(selectedFile.size)}
-                  </p>
-                </div>
-              </div>
+          isSquare ? (
+            <div className="relative flex aspect-square flex-col items-center justify-center gap-3 p-4 text-center">
               {!uploading && onFileRemove && (
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-gray-400 hover:text-red-600"
+                  className="absolute right-2 top-2 h-8 w-8 text-gray-400 hover:text-red-600"
                   onClick={(e) => {
                     e.stopPropagation()
                     onFileRemove()
@@ -226,44 +208,135 @@ export function FileUpload({
                   <X className="h-4 w-4" />
                 </Button>
               )}
-            </div>
-            {uploading && (
-              <div className="mt-3">
-                <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="text-gray-500">上传中...</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
-                  <div className="bg-orange-600 h-1.5 rounded-full animate-pulse" style={{ width: '70%' }}></div>
-                </div>
+              <div className={cn(
+                "flex h-14 w-14 items-center justify-center rounded-2xl",
+                uploading ? "bg-orange-100 dark:bg-orange-900/20" : "bg-gray-100 dark:bg-gray-800"
+              )}>
+                {uploading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
+                ) : (
+                  <div className="text-gray-600 dark:text-gray-400">
+                    {getFileIcon(selectedFile.name)}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        ) : (
-          // 未选择文件的显示
-          <div className="p-8 text-center">
-            <div className={cn(
-              "mx-auto h-12 w-12 rounded-lg flex items-center justify-center",
-              dragActive ? "bg-orange-100 dark:bg-orange-900/20" : "bg-gray-100 dark:bg-gray-800"
-            )}>
-              <Upload className={cn(
-                "h-6 w-6",
-                dragActive ? "text-orange-600" : "text-gray-400"
-              )} />
-            </div>
-            <div className="mt-4">
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                {dragActive ? '释放以上传文件' : '点击或拖放文件到此处'}
-              </p>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                也可以使用 Ctrl+V 粘贴文件
-              </p>
-              {maxSize && (
-                <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                  最大文件大小: {formatFileSize(maxSize)}
+              <div className="w-full space-y-1">
+                <p className="break-all text-xs font-medium leading-5 text-gray-900 dark:text-gray-100">
+                  {selectedFile.name}
                 </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {formatFileSize(selectedFile.size)}
+                </p>
+              </div>
+              {uploading && (
+                <div className="w-full">
+                  <div className="w-full rounded-full bg-gray-200 h-1.5 dark:bg-gray-700">
+                    <div className="bg-orange-600 h-1.5 rounded-full animate-pulse" style={{ width: '70%' }}></div>
+                  </div>
+                </div>
               )}
             </div>
-          </div>
+          ) : (
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3 flex-1">
+                  <div className={cn(
+                    "p-2 rounded-lg",
+                    uploading ? "bg-orange-100 dark:bg-orange-900/20" : "bg-gray-100 dark:bg-gray-800"
+                  )}>
+                    {uploading ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
+                    ) : (
+                      <div className="text-gray-600 dark:text-gray-400">
+                        {getFileIcon(selectedFile.name)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                      {selectedFile.name}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {formatFileSize(selectedFile.size)}
+                    </p>
+                  </div>
+                </div>
+                {!uploading && onFileRemove && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-gray-400 hover:text-red-600"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onFileRemove()
+                      setError(null)
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              {uploading && (
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-gray-500">上传中...</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
+                    <div className="bg-orange-600 h-1.5 rounded-full animate-pulse" style={{ width: '70%' }}></div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        ) : (
+          // 未选择文件的显示
+          isSquare ? (
+            <div className="flex aspect-square flex-col items-center justify-center p-4 text-center">
+              <div className={cn(
+                "mx-auto h-14 w-14 rounded-2xl flex items-center justify-center",
+                dragActive ? "bg-orange-100 dark:bg-orange-900/20" : "bg-gray-100 dark:bg-gray-800"
+              )}>
+                <Upload className={cn(
+                  "h-7 w-7",
+                  dragActive ? "text-orange-600" : "text-gray-400"
+                )} />
+              </div>
+              <div className="mt-4">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {dragActive ? '释放以上传' : '选择文件'}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                  点击或拖放到此处
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="p-8 text-center">
+              <div className={cn(
+                "mx-auto h-12 w-12 rounded-lg flex items-center justify-center",
+                dragActive ? "bg-orange-100 dark:bg-orange-900/20" : "bg-gray-100 dark:bg-gray-800"
+              )}>
+                <Upload className={cn(
+                  "h-6 w-6",
+                  dragActive ? "text-orange-600" : "text-gray-400"
+                )} />
+              </div>
+              <div className="mt-4">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {dragActive ? '释放以上传文件' : '点击或拖放文件到此处'}
+                </p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  也可以使用 Ctrl+V 粘贴文件
+                </p>
+                {maxSize && (
+                  <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                    最大文件大小: {formatFileSize(maxSize)}
+                  </p>
+                )}
+              </div>
+            </div>
+          )
         )}
       </div>
 
