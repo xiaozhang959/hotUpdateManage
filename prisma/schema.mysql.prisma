@@ -11,88 +11,138 @@ datasource db {
 }
 
 model User {
-  id                String    @id @default(cuid())
-  email             String    @unique
-  username          String    @unique
-  password          String
-  role              String    @default("USER")
-  emailVerified     Boolean   @default(false)
-  verificationToken String?   @unique
+  id                 String          @id @default(cuid())
+  email              String          @unique
+  username           String          @unique
+  password           String
+  role               String          @default("USER")
+  emailVerified      Boolean         @default(false)
+  verificationToken  String?         @unique
   verificationExpiry DateTime?
-  resetToken        String?   @unique
-  resetTokenExpiry  DateTime?
-  apiToken          String?   @unique
-  apiTokenCreatedAt DateTime?
-  projects          Project[]
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  @@index([email])
-  @@index([username])
+  resetToken         String?         @unique
+  resetTokenExpiry   DateTime?
+  apiToken           String?         @unique
+  apiTokenCreatedAt  DateTime?
+  projects           Project[]
+  storageConfigs     StorageConfig[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 }
 
 model Project {
-  id              String    @id @default(cuid())
-  name            String
-  apiKey          String    @unique @default(uuid())
-  currentVersion  String?
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  versions        Version[]
-  apiRequests     ApiRequest[]
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  @@index([userId])
-  @@index([apiKey])
+  id             String                @id @default(cuid())
+  name           String
+  apiKey         String                @unique @default(uuid())
+  currentVersion String?
+  userId         String
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  architectures  ProjectArchitecture[]
+  versions       Version[]
+  apiRequests    ApiRequest[]
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 }
 
 model Version {
-  id              String   @id @default(cuid())
-  projectId       String
-  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  version         String
-  downloadUrl     String   @db.VarChar(500)
-  downloadUrls    String   @default("[]") @db.Text
-  urlRotationIndex Int     @default(0)
-  md5             String   @db.VarChar(32)
-  forceUpdate     Boolean  @default(false)
-  changelog       String   @db.Text
-  isCurrent       Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                     String           @id @default(cuid())
+  projectId              String
+  project                Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version                String
+  downloadUrl            String
+  downloadUrls           String           @default("[]")
+  urlRotationIndex       Int              @default(0)
+  size                   BigInt?
+  md5                    String
+  md5Source              String           @default("manual")
+  storageProvider        String?
+  objectKey              String?
+  storageConfigId        String?
+  storageConfig          StorageConfig?   @relation(fields: [storageConfigId], references: [id], onDelete: SetNull)
+  storageProviders       String           @default("[]")
+  forceUpdate            Boolean          @default(false)
+  defaultForceUpdate     Boolean          @default(false)
+  publishState           String           @default("DRAFT")
+  defaultArchitectureKey String?
+  changelog              String
+  isCurrent              Boolean          @default(false)
+  artifacts              VersionArtifact[]
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
 
   @@unique([projectId, version])
-  @@index([projectId])
-  @@index([isCurrent])
+}
+
+model ProjectArchitecture {
+  id         String            @id @default(cuid())
+  projectId  String
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key        String
+  name       String
+  sortOrder  Int               @default(0)
+  enabled    Boolean           @default(true)
+  isDefault  Boolean           @default(false)
+  artifacts  VersionArtifact[]
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@unique([projectId, key])
+  @@index([projectId, sortOrder])
+}
+
+model VersionArtifact {
+  id                  String               @id @default(cuid())
+  versionId           String
+  version             Version              @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  architectureId      String?
+  architecture        ProjectArchitecture? @relation(fields: [architectureId], references: [id], onDelete: SetNull)
+  artifactType        String               @default("BINARY")
+  fileRole            String               @default("PRIMARY")
+  displayName         String
+  fileName            String?
+  downloadUrl         String
+  size                BigInt?
+  md5                 String
+  md5Source           String               @default("manual")
+  storageProvider     String?
+  objectKey           String?
+  storageConfigId     String?
+  storageConfig       StorageConfig?       @relation(fields: [storageConfigId], references: [id], onDelete: SetNull)
+  forceUpdateOverride Boolean?
+  enabled             Boolean              @default(true)
+  sortOrder           Int                  @default(0)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([versionId, architectureId, artifactType, fileRole])
+  @@index([versionId, sortOrder])
+  @@index([architectureId])
 }
 
 model SystemConfig {
   id          String   @id @default(cuid())
   key         String   @unique
-  value       String   @db.Text
-  type        String   @db.VarChar(50)
-  category    String   @db.VarChar(50)
-  description String?  @db.Text
+  value       String
+  type        String
+  category    String
+  description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   @@index([category])
-  @@index([key])
 }
 
 model ApiRequest {
-  id         String   @id @default(cuid())
-  projectId  String?
-  project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  endpoint   String   @db.VarChar(255)
-  method     String   @db.VarChar(10)
-  statusCode Int
+  id           String   @id @default(cuid())
+  projectId    String?
+  project      Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  endpoint     String
+  method       String
+  statusCode   Int
   responseTime Int
-  userAgent  String?  @db.Text
-  ipAddress  String?  @db.VarChar(45)
-  createdAt  DateTime @default(now())
-  
+  userAgent    String?
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+
   @@index([projectId])
   @@index([endpoint])
   @@index([createdAt])
@@ -100,15 +150,31 @@ model ApiRequest {
 
 model EmailLog {
   id        String   @id @default(cuid())
-  toEmail   String   @db.VarChar(255)
-  subject   String   @db.VarChar(255)
-  type      String   @db.VarChar(50)
-  status    String   @db.VarChar(20)
-  error     String?  @db.Text
+  toEmail   String
+  subject   String
+  type      String
+  status    String
+  error     String?
   createdAt DateTime @default(now())
-  
+
   @@index([type])
   @@index([status])
   @@index([createdAt])
-  @@index([toEmail])
+}
+
+model StorageConfig {
+  id               String            @id @default(cuid())
+  name             String
+  provider         String
+  userId           String?
+  user             User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isDefault        Boolean           @default(false)
+  configJson       String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  versions         Version[]
+  versionArtifacts VersionArtifact[]
+
+  @@index([userId])
+  @@index([provider])
 }

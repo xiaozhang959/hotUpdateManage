@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Copy, Key, Package, Rocket, Shield, Code2, ChevronUp, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 
-interface ApiEndpoint {
+export interface ApiEndpoint {
   method: string
   path: string
   description: string
@@ -18,7 +18,7 @@ interface ApiEndpoint {
   response: string
 }
 
-interface ApiCategory {
+export interface ApiCategory {
   category: string
   icon: string
   endpoints: ApiEndpoint[]
@@ -76,13 +76,15 @@ export function ApiDocsClient({ apiEndpoints, codeExamples }: ApiDocsClientProps
           <div>
             <h3 className="font-semibold mb-2">2. 配置请求头</h3>
             <p className="text-gray-600 dark:text-gray-400">
-              在所有API请求中，需要在请求头中添加 <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">X-API-Key</code> 字段。
+              客户端检查更新推荐使用 <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">X-API-Key</code>；
+              管理接口请使用 Bearer Token 或后台 Session。
             </p>
           </div>
           <div>
             <h3 className="font-semibold mb-2">3. 调用接口</h3>
             <p className="text-gray-600 dark:text-gray-400">
-              使用下方的API端点进行版本检查、项目管理等操作。
+              更新检查请尽量同时传入 <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">architecture</code>
+              和 <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">currentVersion</code>，以命中“架构最新可用版本”逻辑。
             </p>
           </div>
         </CardContent>

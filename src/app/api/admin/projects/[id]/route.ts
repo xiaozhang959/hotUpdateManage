@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { versionCache } from '@/lib/cache/version-cache'
 import { prisma } from '@/lib/prisma'
-import { withSerializedSize } from '@/lib/server/serialize'
-import { deleteFiles, deleteProjectUploadDir } from '@/lib/fileUtils'
+import { cleanupArtifactFiles, serializeProjectDetail, setCurrentVersionById } from '@/lib/project-version-service'
+import { projectArchitectureOrder, versionArtifactInclude, versionArtifactsOrder } from '@/lib/version-artifacts'
 
 // 更新项目（仅管理员）
 export async function PATCH(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const session = await auth()
@@ -17,71 +18,97 @@ export async function PATCH(
       return NextResponse.json({ error: '无权限访问' }, { status: 403 })
     }
 
-    const { name, currentVersion } = await req.json()
+    const body = await req.json().catch(() => ({})) as { name?: string; currentVersion?: string | null }
+    const name = body.name?.trim()
+    const currentVersion = body.currentVersion === undefined ? undefined : (body.currentVersion?.trim() || null)
 
-    // 注意：绝不要允许修改项目ID，因为文件存储路径依赖于它
-    const updateData: any = {}
-    if (name) updateData.name = name
-    if (currentVersion !== undefined) updateData.currentVersion = currentVersion
+    const project = await prisma.project.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+      },
+    })
 
-    // 如果更新了当前版本，需要同步更新版本表
-    if (currentVersion !== undefined) {
-      // 先将所有版本设置为非当前版本
-      await prisma.version.updateMany({
-        where: { projectId: id },
-        data: { isCurrent: false }
-      })
-
-      // 设置新的当前版本
-      if (currentVersion) {
-        await prisma.version.updateMany({
-          where: { 
-            projectId: id,
-            version: currentVersion
-          },
-          data: { isCurrent: true }
-        })
-      }
+    if (!project) {
+      return NextResponse.json({ error: '项目不存在' }, { status: 404 })
     }
 
-    const project = await prisma.project.update({
+    await prisma.$transaction(async (tx) => {
+      if (name) {
+        await tx.project.update({
+          where: { id },
+          data: { name },
+        })
+      }
+
+      if (currentVersion !== undefined) {
+        if (!currentVersion) {
+          await tx.version.updateMany({
+            where: { projectId: id },
+            data: { isCurrent: false },
+          })
+          await tx.project.update({
+            where: { id },
+            data: { currentVersion: null },
+          })
+        } else {
+          const target = await tx.version.findUnique({
+            where: {
+              projectId_version: {
+                projectId: id,
+                version: currentVersion,
+              },
+            },
+            select: { id: true },
+          })
+          if (!target) {
+            throw new Error('指定的当前版本不存在')
+          }
+          await setCurrentVersionById(tx, id, target.id)
+        }
+      }
+    })
+
+    const updatedProject = await prisma.project.findUnique({
       where: { id },
-      data: updateData,
       include: {
         user: {
           select: {
             id: true,
             username: true,
-            email: true
-          }
+            email: true,
+          },
+        },
+        architectures: {
+          orderBy: projectArchitectureOrder,
         },
         versions: {
-          orderBy: {
-            createdAt: 'desc'
+          include: {
+            artifacts: {
+              include: versionArtifactInclude,
+              orderBy: versionArtifactsOrder,
+            },
           },
-          take: 5
-        }
-      }
+          orderBy: [{ createdAt: 'desc' }],
+        },
+      },
     })
 
-    const serialized = project && {
-      ...project,
-      versions: project.versions.map((v: any) => withSerializedSize(v))
-    }
-    return NextResponse.json(serialized)
+    await versionCache.clearProjectCache(id)
+
+    return NextResponse.json(updatedProject ? serializeProjectDetail(updatedProject) : null)
   } catch (error) {
+    const message = error instanceof Error ? error.message : '更新项目失败'
     console.error('更新项目失败:', error)
-    return NextResponse.json(
-      { error: '更新项目失败' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: message }, { status: message.includes('不存在') ? 404 : 500 })
   }
 }
 
 // 删除项目（仅管理员）
 export async function DELETE(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const session = await auth()
@@ -91,59 +118,53 @@ export async function DELETE(
       return NextResponse.json({ error: '无权限访问' }, { status: 403 })
     }
 
-    // 先获取项目的所有版本文件URL
     const project = await prisma.project.findUnique({
       where: { id },
       include: {
         versions: {
-          select: {
-            downloadUrl: true
-          }
-        }
-      }
+          include: {
+            artifacts: {
+              include: versionArtifactInclude,
+              orderBy: versionArtifactsOrder,
+            },
+          },
+        },
+      },
     })
 
     if (!project) {
       return NextResponse.json({ error: '项目不存在' }, { status: 404 })
     }
 
-    // 收集所有版本的文件URL
-    const fileUrls = project.versions
-      .map(v => v.downloadUrl)
-      .filter(url => url && url.startsWith('/uploads/'))
+    const artifacts = project.versions.flatMap((version) =>
+      version.artifacts.map((artifact) => ({
+        downloadUrl: artifact.downloadUrl,
+        storageProvider: artifact.storageProvider,
+        objectKey: artifact.objectKey,
+        storageConfigId: artifact.storageConfigId,
+      })),
+    )
 
-    // 删除项目（版本会级联删除）
-    await prisma.project.delete({
-      where: { id }
-    })
-
-    // 删除所有关联的文件
-    if (fileUrls.length > 0) {
-      const deletedCount = await deleteFiles(fileUrls)
-      console.log(`管理员删除项目 ${id}，删除了 ${deletedCount} 个文件`)
-    }
-
-    // 尝试删除项目的整个上传目录
-    await deleteProjectUploadDir(id)
+    await prisma.project.delete({ where: { id } })
+    await cleanupArtifactFiles(id, project.userId, artifacts)
+    await versionCache.clearProjectCache(id)
 
     return NextResponse.json({ message: '项目已删除' })
   } catch (error) {
     console.error('删除项目失败:', error)
-    return NextResponse.json(
-      { error: '删除项目失败' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: '删除项目失败' }, { status: 500 })
   }
 }
 
 // 获取项目详情（仅管理员）
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const session = await auth()
     const { id } = await params
+    const architecture = new URL(req.url).searchParams.get('architecture')
 
     if (!session?.user?.id || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: '无权限访问' }, { status: 403 })
@@ -156,36 +177,31 @@ export async function GET(
           select: {
             id: true,
             username: true,
-            email: true
-          }
+            email: true,
+          },
+        },
+        architectures: {
+          orderBy: projectArchitectureOrder,
         },
         versions: {
-          orderBy: {
-            createdAt: 'desc'
-          }
+          include: {
+            artifacts: {
+              include: versionArtifactInclude,
+              orderBy: versionArtifactsOrder,
+            },
+          },
+          orderBy: [{ createdAt: 'desc' }],
         },
-        _count: {
-          select: {
-            versions: true
-          }
-        }
-      }
+      },
     })
 
     if (!project) {
       return NextResponse.json({ error: '项目不存在' }, { status: 404 })
     }
 
-    const serialized = project && {
-      ...project,
-      versions: project.versions.map((v: any) => withSerializedSize(v))
-    }
-    return NextResponse.json(serialized)
+    return NextResponse.json(serializeProjectDetail(project, architecture))
   } catch (error) {
     console.error('获取项目详情失败:', error)
-    return NextResponse.json(
-      { error: '获取项目详情失败' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: '获取项目详情失败' }, { status: 500 })
   }
 }

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import path from 'path'
+import { resolveProjectAccessContext } from '@/lib/project-access'
 import { getConfig } from '@/lib/system-config'
 import { getActiveStorageProvider, getProviderByConfigId } from '@/lib/storage'
-import { prisma } from '@/lib/prisma'
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,15 +32,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '项目ID缺失' }, { status: 400 })
     }
 
-    // 校验项目权限（管理员放行）
-    if (session.user.role !== 'ADMIN') {
-      const project = await prisma.project.findFirst({
-        where: { id: projectId, userId: session.user.id },
-        select: { id: true }
+    let accessContext
+    try {
+      accessContext = await resolveProjectAccessContext({
+        projectId,
+        requesterUserId: session.user.id,
+        requesterRole: session.user.role,
       })
-      if (!project) {
-        return NextResponse.json({ error: '项目不存在或无权限' }, { status: 404 })
-      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '项目不存在或无权限'
+      return NextResponse.json({ error: message }, { status: message.includes('无权限') ? 403 : 404 })
     }
 
     // 安全检查
@@ -78,18 +79,20 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(bytes)
 
     // 选择存储并写入
-    let providerInfo = await getActiveStorageProvider(session.user.id)
+    let providerInfo = await getActiveStorageProvider(accessContext.ownerUserId)
     if (storageConfigId && storageConfigId !== 'null') {
-      const specified = await getProviderByConfigId(storageConfigId)
+      const specified = await getProviderByConfigId(storageConfigId, accessContext.ownerUserId)
       if (specified) {
         providerInfo = { scope: providerInfo.scope, provider: specified, configId: storageConfigId }
+      } else {
+        return NextResponse.json({ error: '所选存储配置不存在或不可用于当前项目' }, { status: 400 })
       }
     }
     const { provider, scope, configId } = providerInfo
     const put = await provider.putObject({ projectId, fileName, buffer, contentType: file.type || 'application/octet-stream' })
 
     // 记录上传日志（可选：用于安全审计）
-    console.log(`File uploaded via ${provider.name}(${scope}): ${fileName} by user: ${session.user.id}, size: ${file.size}, original: ${file.name}`)
+    console.log(`File uploaded via ${provider.name}(${scope}): ${fileName} by user: ${session.user.id}, storageOwner: ${accessContext.ownerUserId}, size: ${file.size}, original: ${file.name}`)
 
     // 返回文件URL和MD5（对URL进行编码）
     const fileUrl = put.url

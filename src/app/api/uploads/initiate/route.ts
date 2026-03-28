@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { resolveProjectAccessContext } from '@/lib/project-access'
 import { getConfig } from '@/lib/system-config'
 import { createSession } from '@/lib/uploads/resumable'
-import { prisma } from '@/lib/prisma'
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -24,23 +24,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '系统暂时关闭文件上传功能' }, { status: 403 })
   }
 
-  // 校验项目权限（管理员放行）
-  if (session.user.role !== 'ADMIN') {
-    const project = await prisma.project.findFirst({
-      where: { id: projectId, userId: session.user.id },
-      select: { id: true }
+  let accessContext
+  try {
+    accessContext = await resolveProjectAccessContext({
+      projectId,
+      requesterUserId: session.user.id,
+      requesterRole: session.user.role,
     })
-    if (!project) return NextResponse.json({ error: '项目不存在或无权限' }, { status: 404 })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '项目不存在或无权限'
+    return NextResponse.json({ error: message }, { status: message.includes('无权限') ? 403 : 404 })
   }
 
-  const meta = await createSession({
-    userId: session.user.id,
-    projectId,
-    fileName,
-    fileSize,
-    contentType,
-    storageConfigId: storageConfigId || null,
-    preferSingle: !!preferSingle
-  })
-  return NextResponse.json({ success: true, data: meta })
+  try {
+    const meta = await createSession({
+      userId: session.user.id,
+      storageOwnerUserId: accessContext.ownerUserId,
+      projectId,
+      fileName,
+      fileSize,
+      contentType,
+      storageConfigId: storageConfigId || null,
+      preferSingle: !!preferSingle
+    })
+    return NextResponse.json({ success: true, data: meta })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '初始化上传会话失败'
+    return NextResponse.json(
+      { error: message === 'invalid storageConfigId' ? '所选存储配置不存在或不可用于当前项目' : message },
+      { status: message === 'invalid storageConfigId' ? 400 : 500 }
+    )
+  }
 }

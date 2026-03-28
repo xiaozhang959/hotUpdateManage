@@ -10,6 +10,7 @@ export type ResumableStrategy = 'LOCAL_CHUNK' | 'SERVER_CHUNK_TO_REMOTE' | 'S3_M
 export interface UploadSessionMeta {
   uploadId: string
   userId: string
+  storageOwnerUserId?: string
   strategy: ResumableStrategy
   projectId: string
   fileName: string
@@ -59,12 +60,18 @@ export function choosePartSize(fileSize: number) {
   return size
 }
 
-export async function createSession(params: { userId: string, projectId: string, fileName: string, fileSize: number, contentType?: string, storageConfigId?: string | null, preferSingle?: boolean }) {
+export async function createSession(params: { userId: string, storageOwnerUserId?: string | null, projectId: string, fileName: string, fileSize: number, contentType?: string, storageConfigId?: string | null, preferSingle?: boolean }) {
   const { userId, projectId } = params
-  const active = await getActiveStorageProvider(userId)
-  const specified = params.storageConfigId ? await getProviderByConfigId(params.storageConfigId) : null
-  const providerSel = specified || active.provider
-  const providerName = providerSel.name
+  const storageOwnerUserId = params.storageOwnerUserId || userId
+  const active = await getActiveStorageProvider(storageOwnerUserId)
+  const specified = params.storageConfigId ? await getProviderByConfigId(params.storageConfigId, storageOwnerUserId) : null
+  if (params.storageConfigId && !specified) {
+    throw new Error('invalid storageConfigId')
+  }
+  const providerSelection = specified
+    ? { provider: specified, configId: params.storageConfigId || null }
+    : active
+  const providerName = providerSelection.provider.name
   const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
   assertSafeUploadId(uploadId)
   const partSize = choosePartSize(params.fileSize)
@@ -78,6 +85,7 @@ export async function createSession(params: { userId: string, projectId: string,
   const meta: UploadSessionMeta = {
     uploadId,
     userId,
+    storageOwnerUserId,
     strategy: providerName === 'S3' ? (params.preferSingle ? 'S3_SINGLE' : 'S3_MULTIPART') : (providerName === 'LOCAL' ? 'LOCAL_CHUNK' : 'SERVER_CHUNK_TO_REMOTE'),
     projectId,
     fileName: safeName(params.fileName),
@@ -86,13 +94,13 @@ export async function createSession(params: { userId: string, projectId: string,
     partSize,
     totalParts,
     providerName,
-    storageConfigId: params.storageConfigId || null,
+    storageConfigId: providerSelection.configId || null,
     objectKey: `${projectId}/${encodeURIComponent(safeName(params.fileName))}`,
   }
 
   // 若是 S3 多段直传，创建 multipart upload 记录
   if (meta.strategy === 'S3_MULTIPART') {
-    const cfg = params.storageConfigId ? await prisma.storageConfig.findUnique({ where: { id: params.storageConfigId } }) : null
+    const cfg = meta.storageConfigId ? await prisma.storageConfig.findUnique({ where: { id: meta.storageConfigId } }) : null
     const cfgJson = cfg ? JSON.parse(cfg.configJson || '{}') : {}
     const { S3Client, CreateMultipartUploadCommand } = await import('@aws-sdk/client-s3')
     const client = new S3Client({
@@ -168,11 +176,11 @@ export async function assembleAndStore(uploadId: string) {
   // 调用 provider.putObject(filePath) —— 流式/路径写入
   let provider: StorageProvider
   if (meta.storageConfigId) {
-    const p = await getProviderByConfigId(meta.storageConfigId)
+    const p = await getProviderByConfigId(meta.storageConfigId, meta.storageOwnerUserId || meta.userId)
     if (!p) throw new Error('invalid storageConfigId')
     provider = p
   } else {
-    const sel = await getActiveStorageProvider(meta.userId)
+    const sel = await getActiveStorageProvider(meta.storageOwnerUserId || meta.userId)
     provider = sel.provider
   }
   const put = await provider.putObject({ projectId: meta.projectId, fileName: meta.fileName, filePath: assembled, contentType: meta.contentType || 'application/octet-stream' })

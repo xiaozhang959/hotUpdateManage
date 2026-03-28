@@ -36,6 +36,7 @@ model Project {
   currentVersion String? // 当前活跃版本
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  architectures  ProjectArchitecture[]
   versions       Version[]
   apiRequests    ApiRequest[]
   createdAt      DateTime     @default(now())
@@ -59,12 +60,62 @@ model Version {
   storageConfig    StorageConfig? @relation(fields: [storageConfigId], references: [id], onDelete: SetNull)
   storageProviders String         @default("[]")
   forceUpdate      Boolean        @default(false)
+  defaultForceUpdate Boolean      @default(false)
+  publishState     String         @default("DRAFT") // DRAFT | PARTIAL | READY
+  defaultArchitectureKey String?
   changelog        String
   isCurrent        Boolean        @default(false) // 是否为当前版本
+  artifacts        VersionArtifact[]
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
   @@unique([projectId, version])
+}
+
+model ProjectArchitecture {
+  id         String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key         String
+  name        String
+  sortOrder   Int      @default(0)
+  enabled     Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  artifacts   VersionArtifact[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([projectId, key])
+  @@index([projectId, sortOrder])
+}
+
+model VersionArtifact {
+  id                  String               @id @default(cuid())
+  versionId           String
+  version             Version              @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  architectureId      String?
+  architecture        ProjectArchitecture? @relation(fields: [architectureId], references: [id], onDelete: SetNull)
+  artifactType        String               @default("BINARY") // BINARY | FILE
+  fileRole            String               @default("PRIMARY") // PRIMARY | EXTRA
+  displayName         String
+  fileName            String?
+  downloadUrl         String
+  size                BigInt?
+  md5                 String
+  md5Source           String               @default("manual")
+  storageProvider     String?
+  objectKey           String?
+  storageConfigId     String?
+  storageConfig       StorageConfig?       @relation(fields: [storageConfigId], references: [id], onDelete: SetNull)
+  forceUpdateOverride Boolean?
+  enabled             Boolean              @default(true)
+  sortOrder           Int                  @default(0)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([versionId, architectureId, artifactType, fileRole])
+  @@index([versionId, sortOrder])
+  @@index([architectureId])
 }
 
 model SystemConfig {
@@ -125,6 +176,7 @@ model StorageConfig {
 
   // Back relation to Version.storageConfig
   versions Version[]
+  versionArtifacts VersionArtifact[]
 
   @@index([userId])
   @@index([provider])

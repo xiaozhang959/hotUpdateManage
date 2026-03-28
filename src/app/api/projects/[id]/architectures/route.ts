@@ -1,30 +1,22 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import {
-  createVersionWithArtifacts,
-  refreshProjectVersionCache,
-  serializeProjectDetail,
-} from '@/lib/project-version-service'
-import { projectWithVersionDetailsInclude } from '@/lib/version-artifacts'
+import { createProjectArchitecture, listProjectArchitectures } from '@/lib/project-architecture-service'
 
 function resolveErrorStatus(message: string) {
-  if (message.includes('未授权')) return 401
   if (message.includes('不存在')) return 404
   if (
-    message.includes('已存在')
-    || message.includes('请提供')
-    || message.includes('至少需要')
-    || message.includes('缺失')
-    || message.includes('非法')
-    || message.includes('必须')
+    message.includes('请提供')
+    || message.includes('已存在')
+    || message.includes('无法删除')
+    || message.includes('仍有关联产物')
+    || message.includes('仅支持')
   ) {
     return 400
   }
   return 500
 }
 
-// 获取项目的所有版本
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -32,7 +24,6 @@ export async function GET(
   try {
     const session = await auth()
     const { id } = await params
-    const architecture = new URL(req.url).searchParams.get('architecture')
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: '未授权' }, { status: 401 })
@@ -43,21 +34,21 @@ export async function GET(
         id,
         userId: session.user.id,
       },
-      include: projectWithVersionDetailsInclude,
+      select: { id: true },
     })
 
     if (!project) {
       return NextResponse.json({ error: '项目不存在' }, { status: 404 })
     }
 
-    return NextResponse.json(serializeProjectDetail(project, architecture).versions)
+    const architectures = await prisma.$transaction((tx) => listProjectArchitectures(tx, id))
+    return NextResponse.json(architectures)
   } catch (error) {
-    console.error('获取版本列表失败:', error)
-    return NextResponse.json({ error: '获取版本列表失败' }, { status: 500 })
+    console.error('获取项目架构失败:', error)
+    return NextResponse.json({ error: '获取项目架构失败' }, { status: 500 })
   }
 }
 
-// 创建新版本
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -75,9 +66,7 @@ export async function POST(
         id,
         userId: session.user.id,
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     })
 
     if (!project) {
@@ -85,19 +74,11 @@ export async function POST(
     }
 
     const payload = await req.json()
-    const createdVersion = await prisma.$transaction((tx) =>
-      createVersionWithArtifacts(tx, id, {
-        ...payload,
-        isCurrent: payload?.isCurrent ?? true,
-      }),
-    )
-
-    await refreshProjectVersionCache(id)
-
-    return NextResponse.json(createdVersion, { status: 201 })
+    const architecture = await prisma.$transaction((tx) => createProjectArchitecture(tx, id, payload))
+    return NextResponse.json(architecture, { status: 201 })
   } catch (error) {
-    const message = error instanceof Error ? error.message : '创建版本失败'
-    console.error('创建版本失败:', error)
+    const message = error instanceof Error ? error.message : '创建项目架构失败'
+    console.error('创建项目架构失败:', error)
     return NextResponse.json({ error: message }, { status: resolveErrorStatus(message) })
   }
 }

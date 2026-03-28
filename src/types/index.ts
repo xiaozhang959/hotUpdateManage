@@ -18,7 +18,45 @@ export interface Project {
   apiKey: string;
   userId: string;
   user?: User;
+  architectures?: ProjectArchitecture[];
   versions?: Version[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ProjectArchitecture {
+  id: string;
+  projectId: string;
+  key: string;
+  name: string;
+  sortOrder: number;
+  enabled: boolean;
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface VersionArtifact {
+  id: string;
+  versionId: string;
+  architectureKey: string | null;
+  architectureName: string | null;
+  artifactType: 'BINARY' | 'FILE';
+  fileRole: 'PRIMARY' | 'EXTRA';
+  displayName: string;
+  fileName: string | null;
+  downloadUrl: string;
+  rawDownloadUrl?: string;
+  size?: number | string | null;
+  md5: string;
+  md5Source?: string;
+  forceUpdate: boolean;
+  forceUpdateOverride?: boolean | null;
+  enabled: boolean;
+  isDefault?: boolean;
+  storageProvider?: string | null;
+  objectKey?: string | null;
+  storageConfigId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,10 +67,20 @@ export interface Version {
   project?: Project;
   version: string;
   downloadUrl: string;
-  size?: number | null;
+  size?: number | string | null;
   md5: string;
   forceUpdate: boolean;
+  defaultForceUpdate?: boolean;
+  publishState?: 'DRAFT' | 'PARTIAL' | 'READY';
+  defaultArchitectureKey?: string | null;
   changelog: string;
+  artifact?: VersionArtifact | null;
+  artifacts?: VersionArtifact[];
+  architectureCoverage?: {
+    total: number;
+    published: number;
+    missingKeys: string[];
+  };
   createdAt: Date;
   updatedAt: Date;
 }

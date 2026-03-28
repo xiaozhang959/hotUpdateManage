@@ -46,6 +46,8 @@ prisma/dev.db
 # uploads
 uploads/*
 
+*.zip
+
 /src/generated/prisma
 
 # local agent tooling

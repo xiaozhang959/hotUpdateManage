@@ -1,12 +1,22 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { useSession } from 'next-auth/react'
 import Link from 'next/link'
+import { useEffect, useMemo, useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { toast } from 'sonner'
+import { Copy, Edit, Eye, EyeOff, FolderTree, Loader2, Package, Plus, Trash2 } from 'lucide-react'
 import { Footer } from '@/components/layout/footer'
-import { motion, AnimatePresence } from 'framer-motion'
 import { EmailVerificationBanner } from '@/components/email-verification-banner'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Badge,
   Button,
   Card,
   CardContent,
@@ -19,159 +29,48 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   Input,
   Label,
-  Badge,
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
   Separator,
-  SegmentedToggle
 } from '@/components/ui'
-import { toast } from 'sonner'
-import {
-  Plus,
-  Copy,
-  Trash2,
-  Eye,
-  EyeOff,
-  Package,
-  Loader2,
-  ChevronRight,
-  Key,
-  Calendar,
-  Hash,
-  Upload,
-  AlertCircle,
-  X,
-  Edit,
-} from 'lucide-react'
-import { Checkbox } from '@/components/ui/checkbox'
-import { FileUpload } from '@/components/ui/file-upload'
-
-interface Project {
-  id: string
-  name: string
-  apiKey: string
-  currentVersion: string | null
-  createdAt: string
-  updatedAt: string
-  _count: {
-    versions: number
-  }
-  versions: Array<{
-    version: string
-    createdAt: string
-  }>
-}
+import { formatDateTime } from '@/lib/timezone'
+import type { ProjectSummaryItem } from '@/components/projects/project-types'
 
 export default function ProjectsPage() {
   const { data: session } = useSession()
-  const [projects, setProjects] = useState<Project[]>([])
+  const [projects, setProjects] = useState<ProjectSummaryItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [requireEmailVerification, setRequireEmailVerification] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [showApiKeys, setShowApiKeys] = useState<{ [key: string]: boolean }>({})
-  const [deleteProject, setDeleteProject] = useState<Project | null>(null)
-  const [editProject, setEditProject] = useState<Project | null>(null)
-  const [editProjectForm, setEditProjectForm] = useState({
-    name: '',
-    regenerateApiKey: false
-  })
-  const [editingProject, setEditingProject] = useState(false)
-  const [requireEmailVerification, setRequireEmailVerification] = useState(false)
-  const [uploadVersionDialog, setUploadVersionDialog] = useState<Project | null>(null)
-  const [uploadingVersion, setUploadingVersion] = useState(false)
-  const [systemConfig, setSystemConfig] = useState<any>(null)
-  const [uploadForm, setUploadForm] = useState({
-    version: '',
-    downloadUrl: '',
-    downloadUrls: [''] as string[],
-    changelog: '',
-    forceUpdate: false,
-    file: null as File | null,
-    uploadMethod: 'url' as 'url' | 'file'
-  })
-  // 可用存储（项目总览页上传版本时使用）
-  const [availableStorages, setAvailableStorages] = useState<{id:string|null,name:string,provider:string,isDefault:boolean,scope:string}[]>([])
-  const [selectedStorageIds, setSelectedStorageIds] = useState<string[]>([])
-  const fetchAvailableStorages = async () => {
-    try { const res = await fetch('/api/storage-configs/available'); if (res.ok){ const data = await res.json(); setAvailableStorages(data.items||[]); const defaults = (data.items||[]).filter((x:any)=>x.isDefault).map((x:any)=> x.id ?? 'local'); setSelectedStorageIds(defaults.length? defaults:['local']) } } catch(e){ console.error('获取可用存储失败', e) }
-  }
-  const [uploading, setUploading] = useState(false)
-  const [uploadProg, setUploadProg] = useState({ percent: 0, uploadedBytes: 0, totalBytes: 0, uploadedParts: 0, totalParts: 0, resumed: false, strategy: '' as 'S3_MULTIPART' | 'SERVER_CHUNK' | 'SINGLE' | '', retryAttempt: 0, retryDelayMs: 0 })
-  const uploaderRef = useRef<any>(null)
-  const formatBytes = (n: number) => {
-    if (!Number.isFinite(n)) return '0 B'
-    const units = ['B','KB','MB','GB','TB']
-    let i = 0
-    while (n >= 1024 && i < units.length - 1) { n /= 1024; i++ }
-    return `${n % 1 === 0 ? n : n.toFixed(1)} ${units[i]}`
-  }
+  const [editingProject, setEditingProject] = useState<ProjectSummaryItem | null>(null)
+  const [editingName, setEditingName] = useState('')
+  const [regenerateKey, setRegenerateKey] = useState(false)
+  const [savingProject, setSavingProject] = useState(false)
+  const [deletingProject, setDeletingProject] = useState<ProjectSummaryItem | null>(null)
+  const [showApiKeys, setShowApiKeys] = useState<Record<string, boolean>>({})
 
-  // 记住用户上次使用的上传方式（本地存储）
-  const LAST_UPLOAD_METHOD_KEY = 'hum:lastUploadMethod'
-  const loadPreferredUploadMethod = () => {
+  useEffect(() => {
+    void fetchProjects()
+    void fetchSystemConfig()
+  }, [])
+
+  const fetchSystemConfig = async () => {
     try {
-      const v = typeof window !== 'undefined' ? localStorage.getItem(LAST_UPLOAD_METHOD_KEY) : null
-      const enabled = systemConfig?.upload_enabled !== false
-      if (v === 'file' && !enabled) return 'url'
-      return v === 'file' || v === 'url' ? v : 'url'
+      const response = await fetch('/api/system/config')
+      if (!response.ok) return
+      const data = await response.json()
+      setRequireEmailVerification(Boolean(data.require_email_verification))
     } catch {
-      return 'url'
+      // ignore
     }
   }
-  const savePreferredUploadMethod = (v: 'url'|'file') => {
-    try { if (typeof window !== 'undefined') localStorage.setItem(LAST_UPLOAD_METHOD_KEY, v) } catch {}
-  }
-
-  // 打开上传模态时应用上次选择
-  useEffect(() => {
-    if (uploadVersionDialog) {
-      const preferred = loadPreferredUploadMethod()
-      setUploadForm(prev => ({ ...prev, uploadMethod: preferred }))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uploadVersionDialog])
-
-  useEffect(() => {
-    try { import('@/lib/client/resumable-upload').then(m => { const pendings = m.listPendingUploadSessions(); if (pendings.length > 0) { const w: any = typeof window !== 'undefined' ? (window as any) : {}; if (!w.__humPendingToastShown) { w.__humPendingToastShown = true; toast.info(`检测到 ${pendings.length} 个未完成的上传，选择相同文件后可继续。`, { id: 'pending-uploads' }); setTimeout(() => { try { if (w) w.__humPendingToastShown = false } catch {} }, 2000); } } }) } catch {}
-  }, [])
-
-  useEffect(() => {
-    fetchProjects()
-    // 检查是否需要邮箱验证和系统配置
-    fetch('/api/system/config')
-      .then(res => res.json())
-      .then(data => {
-        if (data.require_email_verification) {
-          setRequireEmailVerification(true)
-        }
-        setSystemConfig(data)
-        // 如果文件上传被禁用，确保表单不会处于 file 模式
-        if (!data.upload_enabled) {
-          setUploadForm(prev => {
-            if (prev.uploadMethod !== 'file') return prev
-            return { ...prev, uploadMethod: 'url', file: null }
-          })
-        }
-      })
-      .catch(() => {})
-  }, [])
 
   const fetchProjects = async () => {
     try {
       const response = await fetch('/api/projects')
-      if (!response.ok) {
-        throw new Error('获取项目失败')
-      }
+      if (!response.ok) throw new Error('获取项目失败')
       const data = await response.json()
       setProjects(data)
     } catch {
@@ -186,12 +85,8 @@ export default function ProjectsPage() {
       toast.error('项目名称不能为空')
       return
     }
-    
-    // 检查邮箱验证状态
     if (requireEmailVerification && session?.user && !session.user.emailVerified) {
-      toast.error('请先验证您的邮箱', {
-        description: '验证邮箱后才能创建项目'
-      })
+      toast.error('请先验证您的邮箱')
       return
     }
 
@@ -200,815 +95,192 @@ export default function ProjectsPage() {
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newProjectName })
+        body: JSON.stringify({ name: newProjectName.trim() }),
       })
-
       const data = await response.json()
-      
-      if (!response.ok) {
-        // 使用后端返回的错误消息
-        toast.error(data.error || '创建项目失败')
-        return
-      }
-
-      setProjects([data, ...projects])
+      if (!response.ok) throw new Error(data?.error || '创建项目失败')
+      setProjects((current) => [data, ...current])
       setNewProjectName('')
-      setDialogOpen(false)
+      setCreateOpen(false)
       toast.success('项目创建成功')
-    } catch {
-      toast.error('创建项目失败')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '创建项目失败')
     } finally {
       setCreating(false)
     }
   }
 
-  const handleDeleteProject = async () => {
-    if (!deleteProject) return
-
-    try {
-      const response = await fetch(`/api/projects/${deleteProject.id}`, {
-        method: 'DELETE'
-      })
-
-      if (!response.ok) {
-        throw new Error('删除项目失败')
-      }
-
-      setProjects(projects.filter(p => p.id !== deleteProject.id))
-      toast.success('项目已删除')
-    } catch {
-      toast.error('删除项目失败')
-    } finally {
-      setDeleteProject(null)
+  const handleSaveProject = async () => {
+    if (!editingProject) return
+    if (!editingName.trim()) {
+      toast.error('项目名称不能为空')
+      return
     }
-  }
 
-  const handleEditProject = async () => {
-    if (!editProject) return
-
-    setEditingProject(true)
+    setSavingProject(true)
     try {
-      // 更新项目名称
-      const response = await fetch(`/api/projects/${editProject.id}`, {
+      const updateResponse = await fetch(`/api/projects/${editingProject.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: editProjectForm.name
-        })
+        body: JSON.stringify({ name: editingName.trim() }),
       })
+      const updateData = await updateResponse.json()
+      if (!updateResponse.ok) throw new Error(updateData?.error || '更新项目失败')
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || '更新项目失败')
+      if (regenerateKey) {
+        const keyResponse = await fetch(`/api/projects/${editingProject.id}/regenerate-key`, { method: 'POST' })
+        const keyData = await keyResponse.json()
+        if (!keyResponse.ok) throw new Error(keyData?.error || '重新生成 API Key 失败')
       }
 
-      // 如果需要重新生成API密钥
-      if (editProjectForm.regenerateApiKey) {
-        const resetResponse = await fetch(`/api/projects/${editProject.id}/regenerate-key`, {
-          method: 'POST'
-        })
-
-        if (!resetResponse.ok) {
-          throw new Error('重置API密钥失败')
-        }
-        
-        toast.success('项目信息已更新，API密钥已重新生成')
-      } else {
-        toast.success('项目信息已更新')
-      }
-
-      fetchProjects()
-      setEditProject(null)
-      setEditProjectForm({ name: '', regenerateApiKey: false })
-    } catch (error: any) {
-      toast.error(error.message || '更新项目失败')
+      toast.success(regenerateKey ? '项目信息已更新，API Key 已重新生成' : '项目信息已更新')
+      setEditingProject(null)
+      setRegenerateKey(false)
+      await fetchProjects()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '更新项目失败')
     } finally {
-      setEditingProject(false)
+      setSavingProject(false)
     }
   }
 
-  const copyApiKey = (apiKey: string) => {
-    navigator.clipboard.writeText(apiKey)
-    toast.success('API密钥已复制')
-  }
-
-  const toggleApiKey = (projectId: string) => {
-    setShowApiKeys(prev => ({
-      ...prev,
-      [projectId]: !prev[projectId]
-    }))
-  }
-
-  // 智能生成下一个版本号
-  const generateNextVersion = (project: Project): string => {
-    if (!project.versions || project.versions.length === 0) {
-      return '1.0.0' // 如果没有版本，返回初始版本
-    }
-
-    // 找到最新的版本（按创建时间排序）
-    const latestVersion = project.versions.reduce((latest, current) => {
-      return new Date(current.createdAt) > new Date(latest.createdAt) ? current : latest
-    })
-
-    const versionStr = latestVersion.version
-    
-    // 处理语义化版本号 (如 1.0.1, 2.3.4)
-    const parts = versionStr.split('.')
-    
-    if (parts.length === 3) {
-      // 标准三段式版本号 major.minor.patch
-      const patch = parseInt(parts[2]) || 0
-      return `${parts[0]}.${parts[1]}.${patch + 1}`
-    } else if (parts.length === 2) {
-      // 两段式版本号 major.minor
-      const minor = parseInt(parts[1]) || 0
-      return `${parts[0]}.${minor + 1}`
-    } else if (parts.length === 1) {
-      // 单段版本号
-      const version = parseInt(parts[0]) || 0
-      return `${version + 1}`
-    } else {
-      // 更复杂的版本号，增加最后一段
-      const lastPart = parts[parts.length - 1]
-      const lastNum = parseInt(lastPart) || 0
-      parts[parts.length - 1] = `${lastNum + 1}`
-      return parts.join('.')
-    }
-  }
-
-  const handleUploadVersion = async () => {
-    if (!uploadVersionDialog) return
-    
-    if (!uploadForm.version) {
-      toast.error('请填写版本号')
-      return
-    }
-
-    if (uploadForm.uploadMethod === 'url') {
-      // 过滤空链接并检查是否至少有一个有效链接
-      const validUrls = uploadForm.downloadUrls.filter(url => url.trim() !== '')
-      if (validUrls.length === 0) {
-        toast.error('请至少填写一个下载链接')
-        return
-      }
-    }
-
-    if (uploadForm.uploadMethod === 'file' && !uploadForm.file) {
-      toast.error('请选择要上传的文件')
-      return
-    }
-
-    setUploadingVersion(true)
+  const handleDeleteProject = async () => {
+    if (!deletingProject) return
     try {
-      let downloadUrls: string[] = []
-      let downloadUrl = ''
-      let md5 = ''
-      let uploadedSize: number | undefined
-      let storageProvider: string | null = null
-      let objectKey: string | null = null
-      let storageConfigId: string | null = null
-
-      let storageProviders: { type: string | undefined; name: string; configId: any; objectKey: any }[] = []
-      // 如果是文件上传
-      if (uploadForm.uploadMethod === 'file' && uploadForm.file) {
-        setUploading(true)
-        const targets = selectedStorageIds.length ? selectedStorageIds : ['local']
-        const uploadResults: any[] = []
-        for (const t of targets) {
-          const { startResumableUpload } = await import('@/lib/client/resumable-upload')
-          const storageConfigId = t === 'local' ? null : t
-          setUploadProg({ percent: 0, uploadedBytes: 0, totalBytes: uploadForm.file.size, uploadedParts: 0, totalParts: 0, resumed: false, strategy: '', retryAttempt: 0, retryDelayMs: 0 })
-          const uploader = startResumableUpload({
-            file: uploadForm.file,
-            projectId: uploadVersionDialog.id,
-            storageConfigId,
-            onProgress: (p) => {
-              const percent = Math.max(0, Math.min(100, Math.round((p.uploadedBytes / (p.totalBytes || 1)) * 100)))
-              setUploadProg(prev => ({ ...prev, percent, uploadedBytes: p.uploadedBytes, totalBytes: p.totalBytes, uploadedParts: p.uploadedParts, totalParts: p.totalParts }))
-            },
-            onEvent: (e) => {
-              if (e.type === 'started') setUploadProg(prev => ({ ...prev, strategy: e.strategy, totalParts: e.totalParts, totalBytes: e.totalBytes }))
-              if (e.type === 'resumed') setUploadProg(prev => ({ ...prev, resumed: true, uploadedBytes: e.uploadedBytes }))
-              if (e.type === 'retry') setUploadProg(prev => ({ ...prev, retryAttempt: e.attempt, retryDelayMs: e.delayMs }))
-            }
-          })
-          uploaderRef.current = uploader
-          const result = await uploader.promise
-          uploaderRef.current = null
-          uploadResults.push(result)
-        }
-        // 仅保存上传接口返回的相对/原始URL，不拼接 window.location.origin
-        downloadUrls = uploadResults.map(r => r.url)
-        downloadUrl = downloadUrls[0]
-        md5 = uploadResults[0]?.md5 || ''
-        storageProvider = uploadResults[0]?.storageProvider ?? null
-        objectKey = uploadResults[0]?.objectKey ?? null
-        storageConfigId = uploadResults[0]?.storageConfigId ?? null
-        uploadedSize = uploadResults[0]?.size as number | undefined
-        storageProviders = uploadResults.map(r => {
-          const type = r.storageProvider as string | undefined
-          const cfgId = r.storageConfigId ?? null
-          const found = availableStorages.find((s:any) => String(s.id ?? 'local') === String(cfgId ?? 'local'))
-          const name = found?.name || (type === 'LOCAL' ? '本地存储(内置)' : (type || '链接'))
-          return { type, name, configId: cfgId, objectKey: r.objectKey }
-        })
-        setUploading(false)
-      } else {
-        // URL方式，过滤有效链接并进行URL编码
-        const validUrls = uploadForm.downloadUrls.filter(url => url.trim() !== '')
-        // Keep user-provided URLs as-is (no encoding)
-        downloadUrls = validUrls
-        downloadUrl = downloadUrls[0] // 向后兼容，第一个链接作为主链接
-        storageProviders = downloadUrls.map(u => ({
-          type: (u.includes('/uploads/') ? 'LOCAL' : 'LINK'),
-          name: (u.includes('/uploads/') ? '本地存储(内置)' : '链接'),
-          configId: null,
-          objectKey: null
-        }))
-      }
-
-      // 创建版本
-      const response = await fetch(`/api/projects/${uploadVersionDialog.id}/versions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          version: uploadForm.version,
-          downloadUrl: downloadUrl,
-          downloadUrls: downloadUrls,
-          changelog: uploadForm.changelog || '',
-          forceUpdate: uploadForm.forceUpdate,
-          md5: md5,
-          size: typeof uploadedSize === 'number' ? uploadedSize : undefined,
-          storageProvider,
-          objectKey,
-          storageConfigId,
-          storageProviders
-        })
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || '创建版本失败')
-      }
-
-      toast.success('版本上传成功')
-      setUploadForm({
-        version: '',
-        downloadUrl: '',
-        downloadUrls: [''],
-        changelog: '',
-        forceUpdate: false,
-        file: null,
-        uploadMethod: 'url'
-      })
-      setUploadVersionDialog(null)
-      fetchProjects()
-    } catch (error: any) {
-      if (error?.name === 'AbortError') { toast.message('已取消上传', { id: 'upload-canceled' }); return }
-      toast.error(error.message || '上传版本失败')
-    } finally {
-      setUploadingVersion(false)
-      setUploading(false)
+      const response = await fetch(`/api/projects/${deletingProject.id}`, { method: 'DELETE' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || '删除项目失败')
+      setProjects((current) => current.filter((item) => item.id !== deletingProject.id))
+      setDeletingProject(null)
+      toast.success('项目已删除')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '删除项目失败')
     }
   }
+
+  const projectCards = useMemo(() => projects.map((project) => {
+    const latestVersion = project.versions?.[0]
+    return {
+      project,
+      latestVersion,
+      publishedText: latestVersion?.architectureCoverage
+        ? `${latestVersion.architectureCoverage.published}/${latestVersion.architectureCoverage.total}`
+        : '—',
+    }
+  }), [projects])
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-600" />
-      </div>
-    )
+    return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-orange-600" /></div>
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
-      <main className="container mx-auto px-4 py-8 flex-1 min-h-[calc(100vh-200px)]">
-      <EmailVerificationBanner 
-        emailVerified={!!session?.user?.emailVerified}
-        email={session?.user?.email}
-      />
-      
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-            项目管理
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            管理您的所有项目和API密钥
-          </p>
+      <main className="container mx-auto flex-1 px-4 py-8">
+        <EmailVerificationBanner emailVerified={!!session?.user?.emailVerified} email={session?.user?.email} />
+
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">项目管理</h1>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">在列表页关注项目状态，在详情页集中维护多架构版本。</p>
+          </div>
+          <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" /> 创建项目</Button>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-orange-600 hover:bg-orange-700">
-              <Plus className="mr-2 h-4 w-4" />
-              创建项目
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>创建新项目</DialogTitle>
-              <DialogDescription>
-                输入项目名称，系统将自动生成API密钥
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">项目名称</Label>
-                <Input
-                  id="name"
-                  placeholder="我的项目"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  disabled={creating}
-                />
+
+        {projectCards.length === 0 ? (
+          <Card>
+            <CardContent className="flex min-h-[260px] flex-col items-center justify-center gap-4 text-center">
+              <Package className="h-12 w-12 text-slate-300" />
+              <div>
+                <p className="text-lg font-semibold text-slate-900">还没有任何项目</p>
+                <p className="text-sm text-slate-500">先创建一个项目，再进入详情页维护多架构版本。</p>
               </div>
-            </div>
-            <DialogFooter>
-              <Button
-                onClick={handleCreateProject}
-                disabled={creating || !newProjectName.trim()}
-                className="bg-orange-600 hover:bg-orange-700"
-              >
-                {creating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    创建中...
-                  </>
-                ) : (
-                  '创建'
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+              <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" /> 创建第一个项目</Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-5 xl:grid-cols-2">
+            {projectCards.map(({ project, latestVersion, publishedText }) => (
+              <Card key={project.id} className="border-slate-200 shadow-sm">
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-xl">{project.name}</CardTitle>
+                      <CardDescription className="mt-2">当前版本：{project.currentVersion || '未设置'} · 最近更新时间：{formatDateTime(project.updatedAt)}</CardDescription>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="icon" onClick={() => { setEditingProject(project); setEditingName(project.name); setRegenerateKey(false) }}><Edit className="h-4 w-4" /></Button>
+                      <Button variant="outline" size="icon" className="border-red-200 text-red-600 hover:bg-red-50" onClick={() => setDeletingProject(project)}><Trash2 className="h-4 w-4" /></Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="mb-2 text-xs text-slate-500">API Key</div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 rounded bg-slate-900 px-3 py-2 font-mono text-xs text-orange-200">{showApiKeys[project.id] ? project.apiKey : '••••••••••••••••••••••••••••••••'}</code>
+                      <Button variant="ghost" size="icon" onClick={() => setShowApiKeys((current) => ({ ...current, [project.id]: !current[project.id] }))}>{showApiKeys[project.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
+                      <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(project.apiKey); toast.success('API Key 已复制') }}><Copy className="h-4 w-4" /></Button>
+                    </div>
+                  </div>
 
-      {projects.length === 0 ? (
-        <Card className="text-center py-12">
-          <CardContent>
-            <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              您还没有创建任何项目
-            </p>
-            <Button
-              onClick={() => setDialogOpen(true)}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              创建第一个项目
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-6">
-          {projects.map((project) => (
-            <Card key={project.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-xl">
-                      <Link 
-                        href={`/projects/${project.id}`}
-                        className="hover:text-orange-600 transition-colors duration-200 hover:underline"
-                      >
-                        {project.name}
-                      </Link>
-                    </CardTitle>
-                    <CardDescription className="mt-2 space-y-1">
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          创建于 {new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai') }).format(new Date(project.createdAt))}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Hash className="h-3 w-3" />
-                          {project._count?.versions || 0} 个版本
-                        </span>
-                        {project.currentVersion && (
-                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
-                            当前: v{project.currentVersion}
-                          </Badge>
-                        )}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-slate-200 p-3"><div className="text-xs text-slate-500">架构数量</div><div className="mt-1 text-sm font-semibold text-slate-900">{project.architectures?.length || 0}</div></div>
+                    <div className="rounded-xl border border-slate-200 p-3"><div className="text-xs text-slate-500">版本数量</div><div className="mt-1 text-sm font-semibold text-slate-900">{project._count?.versions ?? project.versions?.length ?? 0}</div></div>
+                    <div className="rounded-xl border border-slate-200 p-3"><div className="text-xs text-slate-500">最新覆盖率</div><div className="mt-1 text-sm font-semibold text-slate-900">{publishedText}</div></div>
+                  </div>
+
+                  {latestVersion ? (
+                    <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge className="bg-white text-orange-700 border border-orange-200">{latestVersion.version}</Badge>
+                        {latestVersion.publishState && <Badge variant="outline">{latestVersion.publishState}</Badge>}
+                        {latestVersion.defaultArchitectureKey && <Badge variant="outline"><FolderTree className="mr-1 h-3 w-3" /> {latestVersion.defaultArchitectureKey}</Badge>}
                       </div>
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setUploadVersionDialog(project)
-                        // 自动填充下一个版本号
-                        const nextVersion = generateNextVersion(project)
-                        setUploadForm(prev => ({ ...prev, version: nextVersion }))
-                      }}
-                      className="bg-orange-600 hover:bg-orange-700 text-white border-orange-600"
-                    >
-                      <Upload className="mr-1 h-4 w-4" />
-                      上传版本
-                    </Button>
-                    <Link href={`/projects/${project.id}`}>
-                      <Button variant="outline" size="sm">
-                        管理版本
-                        <ChevronRight className="ml-1 h-4 w-4" />
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setEditProject(project)
-                        setEditProjectForm({
-                          name: project.name,
-                          regenerateApiKey: false
-                        })
-                      }}
-                      className="text-blue-600 hover:text-blue-700"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setDeleteProject(project)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div>
-                    <Label className="text-sm text-gray-500">API密钥</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="flex-1 font-mono text-sm bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded">
-                        {showApiKeys[project.id]
-                          ? project.apiKey
-                          : '••••••••••••••••••••••••••••••••'}
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => toggleApiKey(project.id)}
-                      >
-                        {showApiKeys[project.id] ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => copyApiKey(project.apiKey)}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
+                      <p className="mt-2 line-clamp-2 text-sm text-slate-600">{latestVersion.changelog || '暂无更新日志'}</p>
                     </div>
-                  </div>
-                  {project.versions && project.versions.length > 0 && (
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      最新版本: {project.versions[0].version}
-                      <span className="ml-2 text-xs">
-                        ({new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai') }).format(new Date(project.versions[0].createdAt))})
-                      </span>
-                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">该项目还没有版本。</div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
 
-      <AlertDialog open={!!deleteProject} onOpenChange={() => setDeleteProject(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认删除项目</AlertDialogTitle>
-            <AlertDialogDescription>
-              确定要删除项目 {deleteProject?.name} 吗？
-              此操作将同时删除该项目下的所有版本，且无法恢复。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteProject}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              删除
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* 编辑项目对话框 */}
-      <Dialog open={!!editProject} onOpenChange={() => setEditProject(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>编辑项目</DialogTitle>
-            <DialogDescription>
-              修改项目信息和管理API密钥
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-project-name">项目名称</Label>
-              <Input
-                id="edit-project-name"
-                value={editProjectForm.name}
-                onChange={(e) => setEditProjectForm({ ...editProjectForm, name: e.target.value })}
-                disabled={editingProject}
-              />
-            </div>
-            
-            {/* API密钥管理 */}
-            <Separator />
-            <div className="space-y-3">
-              <Label>API密钥管理</Label>
-              <Card className="bg-gray-50 dark:bg-gray-900">
-                <CardContent className="pt-4">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm">
-                        <p className="font-medium">当前API密钥</p>
-                        <code className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded mt-1 block">
-                          {editProject?.apiKey.substring(0, 12)}...
-                        </code>
-                      </div>
-                      <Key className="h-4 w-4 text-gray-400" />
-                    </div>
-                    
-                    <div className="flex items-center space-x-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md">
-                      <Checkbox
-                        id="regenerate-api-key"
-                        checked={editProjectForm.regenerateApiKey}
-                        onCheckedChange={(checked) => 
-                          setEditProjectForm({ ...editProjectForm, regenerateApiKey: checked as boolean })
-                        }
-                        disabled={editingProject}
-                      />
-                      <div className="flex-1">
-                        <Label 
-                          htmlFor="regenerate-api-key" 
-                          className="text-sm font-medium cursor-pointer"
-                        >
-                          重新生成API密钥
-                        </Label>
-                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                          <AlertCircle className="inline h-3 w-3 mr-1" />
-                          警告：重新生成将使旧密钥立即失效
-                        </p>
-                      </div>
-                    </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Link href={`/projects/${project.id}`} className="flex-1">
+                      <Button className="w-full bg-orange-600 hover:bg-orange-700">进入多架构工作台</Button>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>
-            </div>
+            ))}
           </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setEditProject(null)
-                setEditProjectForm({ name: '', regenerateApiKey: false })
-              }}
-              disabled={editingProject}
-            >
-              取消
-            </Button>
-            <Button
-              onClick={handleEditProject}
-              disabled={editingProject || !editProjectForm.name.trim()}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              {editingProject ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  保存中...
-                </>
-              ) : (
-                editProjectForm.regenerateApiKey ? '保存并重新生成密钥' : '保存'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 上传版本对话框 */}
-      <Dialog open={!!uploadVersionDialog} onOpenChange={() => setUploadVersionDialog(null)}>
-        <DialogContent onOpenAutoFocus={fetchAvailableStorages} className="max-w-3xl sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>上传新版本</DialogTitle>
-            <DialogDescription>
-              为项目 {uploadVersionDialog?.name} 上传新版本
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-1">
-            <div className="space-y-2">
-              <Label htmlFor="version">版本号 *</Label>
-              <Input
-                id="version"
-                placeholder="1.0.0"
-                value={uploadForm.version}
-                onChange={(e) =>
-                  setUploadForm({ ...uploadForm, version: e.target.value })
-                }
-              />
-            </div>
-            
-            {/* 上传方式选择 */}
-            <div className="space-y-2">
-              <Label>上传方式</Label>
-              {systemConfig?.upload_enabled === false && (
-                <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
-                  <p className="text-sm text-yellow-800 flex items-center gap-1">
-                    <AlertCircle className="h-4 w-4" />
-                    系统管理员已禁用文件上传功能，请使用下载链接方式
-                  </p>
-                </div>
-              )}
-              <SegmentedToggle
-                value={uploadForm.uploadMethod}
-                onChange={(v)=>{ if (v==='file' && systemConfig?.upload_enabled===false) { toast.error('文件上传功能已被系统管理员禁用'); return } savePreferredUploadMethod(v as any); setUploadForm({ ...uploadForm, uploadMethod: v as any }) }}
-                left={{ value: 'url', label: '使用下载链接' }}
-                right={{ value: 'file', label: '上传本地文件' }}
-                disableRight={systemConfig?.upload_enabled === false}
-                className="w-full sm:w-[380px]"
-              />
-            </div>
-            {/* 根据选择显示不同的输入（平滑过渡，避免抖动） */}
-            <div className="relative overflow-hidden min-h-[180px]">
-              <AnimatePresence mode="wait">
-              {uploadForm.uploadMethod === 'url' ? (
-                <motion.div key="url" initial={{opacity:0, y:6}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-6}} transition={{duration:0.18}} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>下载链接 *</Label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setUploadForm({
-                        ...uploadForm,
-                        downloadUrls: [...uploadForm.downloadUrls, '']
-                      })
-                    }}
-                    className="h-7 px-2"
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    添加链接
-                  </Button>
-                </div>
-                {uploadForm.downloadUrls.map((url, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      placeholder={`链接 ${index + 1}: https://example.com/app-v1.0.0.apk`}
-                      value={url}
-                      onChange={(e) => {
-                        const newUrls = [...uploadForm.downloadUrls]
-                        newUrls[index] = e.target.value
-                        setUploadForm({ ...uploadForm, downloadUrls: newUrls })
-                      }}
-                    />
-                    {uploadForm.downloadUrls.length > 1 && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          const newUrls = uploadForm.downloadUrls.filter(
-                            (_, i) => i !== index
-                          )
-                          setUploadForm({ ...uploadForm, downloadUrls: newUrls })
-                        }}
-                        className="h-10 w-10 p-0"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <p className="text-xs text-gray-500">
-                  支持多个APK文件下载链接，API将随机返回其中一个链接
-                </p>
-                </motion.div>
-              ) : (
-                <motion.div key="file" initial={{opacity:0, y:6}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-6}} transition={{duration:0.18}} className="space-y-2">
-                <Label>选择文件 *</Label>
-                <FileUpload onFileSelect={(file) => { setUploadForm({ ...uploadForm, file }); try { import('@/lib/client/resumable-upload').then(m=>{ if (file && uploadVersionDialog?.id && m.checkPendingForFile(file, uploadVersionDialog.id)) { toast.info('检测到该文件的未完成上传，点击“上传”将从断点续传。', { id: 'file-pending-detected' }) } }) } catch {} }} onFileRemove={() => setUploadForm({ ...uploadForm, file: null })} selectedFile={uploadForm.file} maxSize={systemConfig?.max_upload_size || 100 * 1024 * 1024} uploading={uploading} disabled={uploadingVersion} />
-                {uploading && (
-  <>
-<div className="mt-2 space-y-1">
-                    <div className="flex items-center justify-between text-xs text-gray-600">
-                      <span>
-                        {uploadProg.strategy === 'S3_MULTIPART' ? 'S3多段直传' : uploadProg.strategy === 'SERVER_CHUNK' ? '分片上传' : '直传'}
-                        {uploadProg.resumed && <span className="ml-1 text-emerald-600">（已从上次中断恢复）</span>}
-                      </span>
-                      <span>{uploadProg.percent}%</span>
-                    </div>
-                    <div className="h-2 bg-gray-200 rounded">
-                      <div className="h-2 bg-orange-500 rounded" style={{ width: `${uploadProg.percent}%` }} />
-                    </div>
-                    <div className="text-[11px] text-gray-500 flex justify-between">
-                      <span>已传 {formatBytes(uploadProg.uploadedBytes)} / {formatBytes(uploadProg.totalBytes)}</span>
-                      {uploadProg.totalParts > 0 && <span>分片 {Math.min(uploadProg.uploadedParts, uploadProg.totalParts)}/{uploadProg.totalParts}</span>}
-                    </div>
-                    {uploadProg.retryAttempt > 0 && (
-                      <div className="text-[11px] text-orange-600">网络波动，{uploadProg.retryAttempt} 次重试，下一次约 {Math.ceil(uploadProg.retryDelayMs/1000)}s 后</div>
-                    )}
-                  </div>
-  </>
-)}
-                
-                      <div className="space-y-2 mt-2">
-                        <Label>选择存储（可多选）</Label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {availableStorages.map((s) => (
-                            <label key={String(s.id ?? 'local')} className="flex items-center justify-between gap-2 text-sm border rounded px-2 py-1">
-                              <div className="flex items-center gap-2">
-                              <input type="checkbox" checked={selectedStorageIds.includes(String(s.id ?? 'local'))} onChange={(e)=>{
-                                const key = String(s.id ?? 'local');
-                                setSelectedStorageIds(prev => e.target.checked ? Array.from(new Set([...prev, key])) : prev.filter(x=>x!==key))
-                              }} />
-                              <span className="font-medium">{s.name}</span>
-                              <span className="text-xs text-gray-500">({s.provider}{s.isDefault?'·默认':''})</span>
-                              </div>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                                s.scope === 'user'
-                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-300'
-                                  : s.scope === 'global'
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                                  : 'bg-gray-50 text-gray-700 border-gray-300'
-                              }`}>
-                                {s.scope === 'user' ? '我的' : s.scope === 'global' ? '全局' : '内置'}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                </motion.div>
-              )}
-              </AnimatePresence>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="upload-changelog">
-                更新日志
-                <span className="text-xs text-gray-500 ml-1">（可选）</span>
-              </Label>
-              <textarea
-                id="upload-changelog"
-                className="w-full min-h-[100px] px-3 py-2 border rounded-md"
-                placeholder="1. 新增功能xxx&#10;2. 修复bug xxx&#10;3. 优化性能"
-                value={uploadForm.changelog}
-                onChange={(e) =>
-                  setUploadForm({ ...uploadForm, changelog: e.target.value })
-                }
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="upload-forceUpdate"
-                checked={uploadForm.forceUpdate}
-                onCheckedChange={(checked) =>
-                  setUploadForm({ ...uploadForm, forceUpdate: checked as boolean })
-                }
-              />
-              <Label htmlFor="upload-forceUpdate" className="cursor-pointer">
-                强制更新
-              </Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={async () => { if (uploading) { try { await uploaderRef.current?.cancel(); } catch {} finally { setUploading(false) } } else { setUploadVersionDialog(null) } }}
-              disabled={uploadingVersion && !uploading}
-            >
-              取消
-            </Button>
-            <Button
-              onClick={handleUploadVersion}
-              disabled={uploadingVersion || uploading}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              {uploadingVersion || uploading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {uploading ? '上传中...' : '发布中...'}
-                </>
-              ) : (
-                '发布版本'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
       </main>
       <Footer />
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>创建新项目</DialogTitle><DialogDescription>输入项目名称后即可生成 API Key，并进入多架构版本管理流程。</DialogDescription></DialogHeader>
+          <div className="space-y-4 py-2"><div className="space-y-2"><Label htmlFor="project-name-create">项目名称</Label><Input id="project-name-create" value={newProjectName} onChange={(event) => setNewProjectName(event.target.value)} placeholder="我的 Android 应用" disabled={creating} /></div></div>
+          <DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>取消</Button><Button onClick={handleCreateProject} disabled={creating || !newProjectName.trim()} className="bg-orange-600 hover:bg-orange-700">{creating ? <Loader2 className="h-4 w-4 animate-spin" /> : '创建项目'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingProject} onOpenChange={() => setEditingProject(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>编辑项目</DialogTitle><DialogDescription>修改项目名称，并可按需重新生成 API Key。</DialogDescription></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2"><Label htmlFor="project-name-edit">项目名称</Label><Input id="project-name-edit" value={editingName} onChange={(event) => setEditingName(event.target.value)} disabled={savingProject} /></div>
+            <Separator />
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" checked={regenerateKey} onChange={(event) => setRegenerateKey(event.target.checked)} /> 同时重新生成 API Key</label>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setEditingProject(null)} disabled={savingProject}>取消</Button><Button onClick={handleSaveProject} disabled={savingProject || !editingName.trim()} className="bg-orange-600 hover:bg-orange-700">{savingProject ? <Loader2 className="h-4 w-4 animate-spin" /> : '保存修改'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deletingProject} onOpenChange={() => setDeletingProject(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>确认删除项目</AlertDialogTitle><AlertDialogDescription>删除项目后，该项目下的所有逻辑版本、架构产物与附件都会一起移除，且无法恢复。</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleDeleteProject}>删除项目</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
