@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
-import { initCache } from '@/lib/cache/init-cache'
-import { initState, needsInitialization } from '@/lib/server/init-state'
+import {
+  markInitializationCompleted,
+  needsInitialization,
+} from '@/lib/server/init-state'
 import { revalidatePath } from 'next/cache'
 import { requireBootstrapToken } from '@/lib/security/bootstrap'
 
@@ -29,8 +31,7 @@ export async function POST(request: NextRequest) {
     // 2. 直接查询数据库再次确认
     const userCount = await prisma.user.count()
     if (userCount > 0) {
-      // 更新全局状态
-      initState.markAsInitialized()
+      markInitializationCompleted(userCount)
       return NextResponse.json(
         { error: '系统已经初始化' },
         { status: 400 }
@@ -74,13 +75,10 @@ export async function POST(request: NextRequest) {
         role: 'ADMIN', // 设置为管理员角色
       },
     })
-    
-    // 清除初始化状态缓存
-    initCache.clearCache()
-    
-    // 更新全局初始化状态
-    initState.markAsInitialized()
-    
+
+    // 当前实例已明确完成初始化，直接提升为已初始化快照
+    markInitializationCompleted(1)
+
     // 重新验证所有路径的缓存
     revalidatePath('/', 'layout')
     revalidatePath('/init', 'layout')
@@ -90,6 +88,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: '管理员账户创建成功',
+      redirectTo: '/login',
       user: {
         id: admin.id,
         email: admin.email,

@@ -1,103 +1,154 @@
-/**
- * 全局初始化状态管理
- * 在服务器启动时检查一次，然后保存在内存中
- */
-
 import { prisma } from '@/lib/prisma'
 
-class InitStateManager {
-  private static instance: InitStateManager
-  private isInitialized: boolean | null = null
-  private checkPromise: Promise<boolean> | null = null
+export interface InitializationStatus {
+  isInitialized: boolean
+  userCount: number
+  checkedAt: string
+}
 
-  private constructor() {}
+interface InitStateStore {
+  startupStatusPromise: Promise<InitializationStatus> | null
+  liveStatusPromise: Promise<InitializationStatus> | null
+  initializedSnapshot: InitializationStatus | null
+}
 
-  static getInstance(): InitStateManager {
-    if (!InitStateManager.instance) {
-      InitStateManager.instance = new InitStateManager()
-    }
-    return InitStateManager.instance
-  }
+const globalInitState = globalThis as typeof globalThis & {
+  __HOT_UPDATE_INIT_STATE__?: InitStateStore
+}
 
-  /**
-   * 检查系统是否已初始化
-   * 首次调用时会查询数据库，后续调用直接返回缓存值
-   */
-  async isSystemInitialized(): Promise<boolean> {
-    // 如果已经有缓存值，直接返回
-    if (this.isInitialized !== null) {
-      return this.isInitialized
-    }
+const initStateStore: InitStateStore =
+  globalInitState.__HOT_UPDATE_INIT_STATE__ ??
+  (globalInitState.__HOT_UPDATE_INIT_STATE__ = {
+    startupStatusPromise: null,
+    liveStatusPromise: null,
+    initializedSnapshot: null,
+  })
 
-    // 如果正在检查中，等待检查完成
-    if (this.checkPromise) {
-      return this.checkPromise
-    }
-
-    // 执行检查
-    this.checkPromise = this.performCheck()
-    const result = await this.checkPromise
-    this.checkPromise = null
-    
-    return result
-  }
-
-  /**
-   * 执行实际的初始化检查
-   */
-  private async performCheck(): Promise<boolean> {
-    try {
-      const userCount = await prisma.user.count()
-      // 系统已初始化 = 至少有一个用户
-      this.isInitialized = userCount > 0
-      
-      console.log(`[InitState] 系统初始化状态: ${this.isInitialized ? '已初始化' : '未初始化'}`)
-      
-      return this.isInitialized
-    } catch (error) {
-      console.error('[InitState] 检查初始化状态失败:', error)
-      // 出错时假定系统已初始化，避免阻塞
-      this.isInitialized = true
-      return true
-    }
-  }
-
-  /**
-   * 标记系统已完成初始化
-   * 在用户完成初始化设置后调用
-   */
-  markAsInitialized() {
-    this.isInitialized = true
-    console.log('[InitState] 系统已标记为初始化完成')
-    // 在生产环境中，清理 Next.js 的缓存
-    if (typeof globalThis.fetch !== 'undefined') {
-      try {
-        // 触发 revalidate
-        fetch('/api/revalidate-init', { 
-          method: 'POST',
-          headers: { 'x-internal-revalidate': 'true' }
-        }).catch(() => {})
-      } catch {}
-    }
-  }
-
-  /**
-   * 重置初始化状态（用于测试或特殊情况）
-   */
-  reset() {
-    this.isInitialized = null
-    this.checkPromise = null
-    console.log('[InitState] 初始化状态已重置')
+function createSafeFallbackStatus(): InitializationStatus {
+  return {
+    isInitialized: true,
+    userCount: 0,
+    checkedAt: new Date().toISOString(),
   }
 }
 
-// 导出单例实例
-export const initState = InitStateManager.getInstance()
+async function readInitializationStatusFromDatabase(
+  reason: 'startup' | 'live-refresh',
+): Promise<InitializationStatus> {
+  const userCount = await prisma.user.count()
+  const status: InitializationStatus = {
+    isInitialized: userCount > 0,
+    userCount,
+    checkedAt: new Date().toISOString(),
+  }
+
+  console.log(
+    `[InitState] ${reason === 'startup' ? '启动阶段' : '运行期'}读取初始化状态: ${status.isInitialized ? '已初始化' : '未初始化'} (userCount=${userCount})`,
+  )
+
+  return status
+}
+
+function rememberInitializedStatus(status: InitializationStatus) {
+  if (!status.isInitialized) {
+    return
+  }
+
+  initStateStore.initializedSnapshot = status
+  initStateStore.startupStatusPromise = Promise.resolve(status)
+  initStateStore.liveStatusPromise = null
+}
+
+async function getStartupStatus(): Promise<InitializationStatus> {
+  if (!initStateStore.startupStatusPromise) {
+    initStateStore.startupStatusPromise = readInitializationStatusFromDatabase('startup').catch(
+      (error) => {
+        initStateStore.startupStatusPromise = null
+        throw error
+      },
+    )
+  }
+
+  return initStateStore.startupStatusPromise
+}
+
+async function getLiveStatus(): Promise<InitializationStatus> {
+  if (!initStateStore.liveStatusPromise) {
+    initStateStore.liveStatusPromise = readInitializationStatusFromDatabase(
+      'live-refresh',
+    ).finally(() => {
+      initStateStore.liveStatusPromise = null
+    })
+  }
+
+  return initStateStore.liveStatusPromise
+}
 
 /**
- * 便捷函数：检查系统是否需要初始化
+ * 获取初始化状态。
+ * - 服务启动后先读取一次数据库
+ * - 如果启动时已初始化，后续请求直接复用进程内快照
+ * - 如果启动时未初始化，仅在“未初始化”阶段做实时查库兜底
+ * - 任一实例一旦观察到已初始化，就提升为进程内快照，避免后续每次请求查库
  */
+export async function getInitializationStatus(): Promise<InitializationStatus> {
+  try {
+    if (initStateStore.initializedSnapshot) {
+      return initStateStore.initializedSnapshot
+    }
+
+    const startupStatus = await getStartupStatus()
+    if (startupStatus.isInitialized) {
+      rememberInitializedStatus(startupStatus)
+      return startupStatus
+    }
+
+    const liveStatus = await getLiveStatus()
+    if (liveStatus.isInitialized) {
+      rememberInitializedStatus(liveStatus)
+    } else {
+      initStateStore.startupStatusPromise = Promise.resolve(liveStatus)
+    }
+
+    return liveStatus
+  } catch (error) {
+    console.error('[InitState] 检查初始化状态失败:', error)
+    return createSafeFallbackStatus()
+  }
+}
+
 export async function needsInitialization(): Promise<boolean> {
-  const isInitialized = await initState.isSystemInitialized()
-  return !isInitialized
+  const status = await getInitializationStatus()
+  return !status.isInitialized
+}
+
+/**
+ * 仅重置本实例的初始化状态快照。
+ * 下次读取时会重新按“启动检查 + 未初始化兜底”的策略获取最新状态。
+ */
+export function revalidateInitializationState() {
+  initStateStore.initializedSnapshot = null
+  initStateStore.startupStatusPromise = null
+  initStateStore.liveStatusPromise = null
+}
+
+/**
+ * 在当前实例已明确完成初始化后，直接提升为已初始化快照，
+ * 避免 /init 成功后本实例再次落到实时查库或旧状态。
+ */
+export function markInitializationCompleted(userCount = 1) {
+  rememberInitializedStatus({
+    isInitialized: true,
+    userCount: Math.max(userCount, 1),
+    checkedAt: new Date().toISOString(),
+  })
+}
+
+/**
+ * 手动刷新当前实例的初始化状态。
+ * 适合管理端调用或恢复数据库后主动同步。
+ */
+export async function refreshInitializationState(): Promise<InitializationStatus> {
+  revalidateInitializationState()
+  return getInitializationStatus()
 }

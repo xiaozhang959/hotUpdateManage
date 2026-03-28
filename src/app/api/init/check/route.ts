@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { initCache } from '@/lib/cache/init-cache'
+import { getInitializationStatus } from '@/lib/server/init-state'
 import { requireBootstrapToken } from '@/lib/security/bootstrap'
 
 export async function GET(req: Request) {
@@ -9,27 +8,12 @@ export async function GET(req: Request) {
     if (bootstrapError) {
       return NextResponse.json({ error: bootstrapError }, { status: 403 })
     }
-    // 先检查缓存
-    const cached = initCache.getStatus()
-    if (cached && !initCache.isStale()) {
-      return NextResponse.json({
-        needsInit: cached.needsInit,
-        cached: true
-      })
-    }
-    
-    // 缓存未命中或已过期，查询数据库
-    const userCount = await prisma.user.count()
-    
-    // 如果没有用户，需要初始化
-    const needsInit = userCount === 0
-    
-    // 更新缓存
-    initCache.setStatus({ needsInit, userCount })
-    
+    const status = await getInitializationStatus()
+
     return NextResponse.json({
-      needsInit,
-      cached: false
+      needsInit: !status.isInitialized,
+      userCount: status.userCount,
+      checkedAt: status.checkedAt,
     })
   } catch (error) {
     console.error('检查初始化状态失败:', error)

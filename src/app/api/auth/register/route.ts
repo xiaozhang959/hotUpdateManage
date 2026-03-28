@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { getConfig } from '@/lib/system-config'
-import { initCache } from '@/lib/cache/init-cache'
+import { markInitializationCompleted } from '@/lib/server/init-state'
 import { sendEmail, generateVerificationEmail } from '@/lib/mailer'
 import crypto from 'crypto'
 
@@ -88,8 +88,8 @@ export async function POST(req: Request) {
       }
     })
     
-    // 清除初始化状态缓存（用户数量已变化）
-    initCache.clearCache()
+    // 创建任意用户后，当前实例即可视为已初始化
+    markInitializationCompleted()
     
     // 发送验证邮件
     if (requireEmailVerification && smtpEnabled && verificationToken) {

@@ -89,12 +89,8 @@ export default function InitPage() {
         throw new Error(data.error || '初始化失败')
       }
 
-      toast.success('管理员账户创建成功！即将跳转到登录页...')
-      
-      // 延迟跳转，让用户看到成功消息
-      setTimeout(() => {
-        router.push('/login')
-      }, 2000)
+      toast.success('管理员账户创建成功，正在跳转到登录页...')
+      router.replace(data.redirectTo || '/login')
     } catch (error: any) {
       toast.error(error.message || '初始化失败')
     } finally {
