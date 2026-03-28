@@ -1,61 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import bcrypt from 'bcryptjs'
-import { getConfig } from '@/lib/system-config'
+import { decryptAuthRequestPayload } from '@/lib/server/auth-request-crypto'
+import { validateLoginCredentials } from '@/lib/server/login-auth'
 
 export async function POST(request: NextRequest) {
   try {
-    const { account, password } = await request.json()
-    
-    if (!account || !password) {
-      return NextResponse.json({ 
-        success: false, 
-        error: '请输入用户名/邮箱和密码' 
+    const { encryptedPayload } = await request.json()
+
+    let decryptedCredentials: {
+      account: string
+      password: string
+    }
+
+    try {
+      decryptedCredentials = decryptAuthRequestPayload(encryptedPayload)
+    } catch (error) {
+      return NextResponse.json({
+        success: false,
+        error: error instanceof Error ? error.message : '登录请求解密失败，请刷新页面后重试',
+      }, { status: 400 })
+    }
+
+    const result = await validateLoginCredentials(
+      decryptedCredentials.account,
+      decryptedCredentials.password,
+    )
+
+    if (!result.success) {
+      if (result.code === 'EMAIL_NOT_VERIFIED') {
+        return NextResponse.json({
+          success: false,
+          error: 'email_not_verified',
+          message: result.message,
+          email: result.email,
+        })
+      }
+
+      return NextResponse.json({
+        success: false,
+        error: result.message,
       })
     }
-    
-    // 查找用户
-    let user = await prisma.user.findUnique({
-      where: { email: account }
-    })
-    
-    if (!user) {
-      user = await prisma.user.findUnique({
-        where: { username: account }
-      })
-    }
-    
-    if (!user) {
-      return NextResponse.json({ 
-        success: false, 
-        error: '用户名/邮箱或密码错误' 
-      })
-    }
-    
-    // 验证密码
-    const isPasswordValid = await bcrypt.compare(password, user.password)
-    if (!isPasswordValid) {
-      return NextResponse.json({ 
-        success: false, 
-        error: '用户名/邮箱或密码错误' 
-      })
-    }
-    
-    // 检查邮箱验证状态
-    const requireEmailVerification = await getConfig('require_email_verification')
-    if (requireEmailVerification && !user.emailVerified) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'email_not_verified',
-        message: '您的邮箱尚未验证，请先验证邮箱后再登录',
-        email: user.email // 返回邮箱以便前端显示或重新发送验证邮件
-      })
-    }
-    
-    // 所有检查通过
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       success: true,
-      message: '验证通过'
+      message: '验证通过',
     })
     
   } catch (error) {

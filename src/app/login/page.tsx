@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { encryptLoginRequestPayload, primeAuthTransportPublicConfig } from '@/lib/client/auth-request-crypto'
 import { toast } from 'sonner'
 import { Loader2, ArrowLeft } from 'lucide-react'
 
@@ -22,6 +23,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     fetchSystemConfig()
+    void primeAuthTransportPublicConfig().catch((error) => {
+      console.error('预热登录加密公钥失败:', error)
+    })
   }, [])
 
   const fetchSystemConfig = async () => {
@@ -41,13 +45,17 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
+      const encryptedPayload = await encryptLoginRequestPayload({
+        account: formData.account,
+        password: formData.password,
+      })
+
       // 先进行预检查
       const preCheckResponse = await fetch('/api/auth/pre-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          account: formData.account,
-          password: formData.password
+          encryptedPayload,
         })
       })
       
@@ -78,9 +86,8 @@ export default function LoginPage() {
       
       // 预检查通过，进行正式登录
       const result = await signIn('credentials', {
-        email: formData.account, // NextAuth 仍使用 email 字段，但我们传入 account（可能是用户名或邮箱）
-        password: formData.password,
-        redirect: false
+        encryptedPayload,
+        redirect: false,
       })
 
       if (result?.error) {
