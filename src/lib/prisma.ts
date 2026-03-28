@@ -1,10 +1,12 @@
 import { PrismaClient, Prisma } from '@prisma/client'
+import { APP_TZ, normalizeTimeZone } from '@/lib/timezone'
 
 // Ensure default timezone from env (fallback Asia/Shanghai)
 try {
-  if (!process.env.TZ || process.env.TZ.length === 0) {
-    process.env.TZ = process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai'
-  }
+  process.env.TZ = normalizeTimeZone(
+    process.env.TZ || process.env.NEXT_PUBLIC_TZ,
+    APP_TZ,
+  )
 } catch {}
 
 const globalForPrisma = globalThis as unknown as {

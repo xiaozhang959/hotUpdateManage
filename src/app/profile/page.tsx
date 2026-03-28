@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { Footer } from '@/components/layout/footer'
+import { formatInAppTimeZone } from '@/lib/timezone'
 import {
   Button,
   Card,
@@ -315,7 +316,7 @@ export default function ProfilePage() {
                 </div>
                 {tokenCreatedAt && (
                   <p className="text-sm text-gray-500">
-                    创建时间: {new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai') }).format(tokenCreatedAt)}
+                    创建时间: {formatInAppTimeZone(tokenCreatedAt)}
                   </p>
                 )}
               </div>

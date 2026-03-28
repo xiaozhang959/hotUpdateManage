@@ -1,5 +1,22 @@
 import type { NextConfig } from "next";
 
+const DEFAULT_TIME_ZONE = 'Asia/Shanghai'
+
+function normalizeTimeZone(value?: string) {
+  const candidate = value?.trim().replace(/^:/, '')
+
+  if (!candidate) {
+    return DEFAULT_TIME_ZONE
+  }
+
+  try {
+    new Intl.DateTimeFormat('zh-CN', { timeZone: candidate })
+    return candidate
+  } catch {
+    return DEFAULT_TIME_ZONE
+  }
+}
+
 const nextConfig: NextConfig = {
   // 在构建时忽略 ESLint 错误
   eslint: {
@@ -7,7 +24,7 @@ const nextConfig: NextConfig = {
   },
   // 向浏览器暴露统一时区（默认上海）
   env: {
-    NEXT_PUBLIC_TZ: process.env.TZ || 'Asia/Shanghai',
+    NEXT_PUBLIC_TZ: normalizeTimeZone(process.env.NEXT_PUBLIC_TZ || process.env.TZ),
     // 智能分片阈值（MB），默认 60，可按需覆盖
     NEXT_PUBLIC_UPLOAD_CHUNK_THRESHOLD_MB: process.env.NEXT_PUBLIC_UPLOAD_CHUNK_THRESHOLD_MB || '60',
     // 断点续传有效期（小时），默认 72 小时

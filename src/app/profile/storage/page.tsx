@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Badge, Button, Card, CardContent, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, InfoHint, Input, Label, Separator, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui'
 import { toast } from 'sonner'
 import { Plus, Trash2, Save, RefreshCw } from 'lucide-react'
+import { formatDateTime } from '@/lib/timezone'
 
 type Provider = 'LOCAL'|'WEBDAV'|'S3'|'OSS'
 
@@ -222,7 +223,7 @@ export default function ProfileStoragePage() {
                     <TableCell className="font-medium">{it.name}</TableCell>
                     <TableCell>{it.provider}</TableCell>
                     <TableCell>{it.isDefault ? <Badge variant="outline">默认</Badge> : '-'}</TableCell>
-                    <TableCell>{new Intl.DateTimeFormat('zh-CN', { timeZone: (process.env.NEXT_PUBLIC_TZ || 'Asia/Shanghai'), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date(it.createdAt))}</TableCell>
+                    <TableCell>{formatDateTime(it.createdAt)}</TableCell>
                     <TableCell className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={()=>{ setForm({ id:it.id, name:it.name, provider: it.provider as Provider, isDefault: it.isDefault, config: JSON.parse(it.configJson||'{}') }); setOpen(true) }}>编辑</Button>
                       <Button size="sm" variant="ghost" className="text-red-600" onClick={()=>remove(it.id)}><Trash2 className="h-4 w-4"/></Button>
