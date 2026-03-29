@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useAuthTransportPublicConfig } from '@/components/providers/AuthTransportProvider'
 import { Footer } from '@/components/layout/footer'
+import { encryptAuthRequestPayload } from '@/lib/client/auth-request-crypto'
 import { formatInAppTimeZone } from '@/lib/timezone'
 import {
   Button,
@@ -22,6 +24,7 @@ import Link from 'next/link'
 
 export default function ProfilePage() {
   const { data: session, update } = useSession()
+  const authTransportConfig = useAuthTransportPublicConfig()
   const [loading, setLoading] = useState(false)
   const [tokenLoading, setTokenLoading] = useState(false)
   const [showToken, setShowToken] = useState(false)
@@ -101,13 +104,17 @@ export default function ProfilePage() {
 
     setLoading(true)
     try {
+      const encryptedPayload = encryptAuthRequestPayload(authTransportConfig, {
+        username: formData.username !== session?.user?.name ? formData.username : undefined,
+        currentPassword: formData.currentPassword || undefined,
+        newPassword: formData.newPassword || undefined,
+      })
+
       const response = await fetch('/api/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: formData.username !== session?.user?.name ? formData.username : undefined,
-          currentPassword: formData.currentPassword || undefined,
-          newPassword: formData.newPassword || undefined
+          encryptedPayload,
         })
       })
 

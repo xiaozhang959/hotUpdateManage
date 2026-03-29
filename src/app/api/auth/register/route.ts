@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { getConfig } from '@/lib/system-config'
 import { markInitializationCompleted } from '@/lib/server/init-state'
+import { parseRegisterEncryptedPayload } from '@/lib/server/auth-request-payloads'
 import { sendEmail, generateVerificationEmail } from '@/lib/mailer'
 import crypto from 'crypto'
 
@@ -17,7 +18,20 @@ export async function POST(req: Request) {
       )
     }
 
-    const { email, username, password } = await req.json()
+    const body = await req.json().catch(() => ({}))
+
+    let email: string
+    let username: string
+    let password: string
+
+    try {
+      ({ email, username, password } = parseRegisterEncryptedPayload(body.encryptedPayload))
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : '注册请求解密失败，请刷新页面后重试' },
+        { status: 400 },
+      )
+    }
 
     // 验证输入
     if (!email || !username || !password) {

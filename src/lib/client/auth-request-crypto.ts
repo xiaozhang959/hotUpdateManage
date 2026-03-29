@@ -1,22 +1,7 @@
 'use client'
 
 import forge from 'node-forge'
-
-interface AuthTransportPublicConfig {
-  version: number
-  kid: string
-  algorithm: string
-  publicKey: string
-  maxAgeMs: number
-}
-
-interface EncryptLoginRequestParams {
-  account: string
-  password: string
-}
-
-let cachedPublicConfig: AuthTransportPublicConfig | null = null
-let inflightPublicConfig: Promise<AuthTransportPublicConfig> | null = null
+import type { AuthTransportPublicConfig } from '@/lib/shared/auth-request-contract'
 
 function toBase64Url(binary: string) {
   return forge.util.encode64(binary)
@@ -25,47 +10,16 @@ function toBase64Url(binary: string) {
     .replace(/=+$/g, '')
 }
 
-async function fetchTransportPublicConfig(force = false) {
-  if (!force && cachedPublicConfig) {
-    return cachedPublicConfig
-  }
-
-  if (!force && inflightPublicConfig) {
-    return inflightPublicConfig
-  }
-
-  const promise = fetch('/api/auth/transport-key', {
-    method: 'GET',
-    cache: 'no-store',
-  }).then(async (response) => {
-    const data = await response.json().catch(() => null)
-    if (!response.ok || !data) {
-      throw new Error(data?.error || '获取登录加密公钥失败')
-    }
-
-    cachedPublicConfig = data as AuthTransportPublicConfig
-    return cachedPublicConfig
-  }).finally(() => {
-    inflightPublicConfig = null
-  })
-
-  inflightPublicConfig = promise
-  return promise
-}
-
-export async function primeAuthTransportPublicConfig() {
-  await fetchTransportPublicConfig()
-}
-
-export async function encryptLoginRequestPayload(params: EncryptLoginRequestParams) {
-  const config = await fetchTransportPublicConfig(true)
+export function encryptAuthRequestPayload<T extends Record<string, unknown>>(
+  config: AuthTransportPublicConfig,
+  payload: T,
+) {
   const publicKey = forge.pki.publicKeyFromPem(config.publicKey)
   const aesKey = forge.random.getBytesSync(32)
   const iv = forge.random.getBytesSync(12)
   const ts = Date.now()
   const plaintext = JSON.stringify({
-    account: params.account.trim(),
-    password: params.password,
+    ...payload,
     ts,
   })
 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { parseProfileEncryptedPayload } from '@/lib/server/auth-request-payloads'
 
 // 更新个人信息
 export async function PATCH(req: Request) {
@@ -12,7 +13,20 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: '未授权' }, { status: 401 })
     }
 
-    const { username, currentPassword, newPassword } = await req.json()
+    const body = await req.json().catch(() => ({}))
+
+    let username: string | undefined
+    let currentPassword: string | undefined
+    let newPassword: string | undefined
+
+    try {
+      ({ username, currentPassword, newPassword } = parseProfileEncryptedPayload(body.encryptedPayload))
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : '个人信息更新请求解密失败，请刷新页面后重试' },
+        { status: 400 },
+      )
+    }
 
     // 如果要修改密码，需要验证当前密码
     if (newPassword) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { decryptAuthRequestPayload } from '@/lib/server/auth-request-crypto'
+import { parseLoginEncryptedPayload } from '@/lib/server/auth-request-payloads'
 import { validateLoginCredentials } from '@/lib/server/login-auth'
 
 export async function POST(request: NextRequest) {
@@ -12,11 +12,11 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      decryptedCredentials = decryptAuthRequestPayload(encryptedPayload)
+      decryptedCredentials = parseLoginEncryptedPayload(encryptedPayload)
     } catch (error) {
       return NextResponse.json({
         success: false,
-        error: error instanceof Error ? error.message : '登录请求解密失败，请刷新页面后重试',
+        error: error instanceof Error ? error.message : '加密请求解密失败，请刷新页面后重试',
       }, { status: 400 })
     }
 

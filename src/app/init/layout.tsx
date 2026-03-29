@@ -1,3 +1,5 @@
+import { AuthTransportProvider } from '@/components/providers/AuthTransportProvider'
+import { getAuthTransportPublicConfig } from '@/lib/server/auth-request-crypto'
 import { redirect } from 'next/navigation'
 import { needsInitialization } from '@/lib/server/init-state'
 
@@ -17,5 +19,9 @@ export default async function InitLayout({
     redirect('/login')
   }
 
-  return <>{children}</>
+  return (
+    <AuthTransportProvider config={getAuthTransportPublicConfig()}>
+      {children}
+    </AuthTransportProvider>
+  )
 }

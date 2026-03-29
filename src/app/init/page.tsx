@@ -14,11 +14,14 @@ import {
   Alert,
   AlertDescription,
 } from '@/components/ui'
+import { useAuthTransportPublicConfig } from '@/components/providers/AuthTransportProvider'
+import { encryptAuthRequestPayload } from '@/lib/client/auth-request-crypto'
 import { Loader2, Shield, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function InitPage() {
   const router = useRouter()
+  const authTransportConfig = useAuthTransportPublicConfig()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     bootstrapToken: '',
@@ -70,16 +73,20 @@ export default function InitPage() {
     setLoading(true)
 
     try {
+      const encryptedPayload = encryptAuthRequestPayload(authTransportConfig, {
+        bootstrapToken: formData.bootstrapToken,
+        email: formData.email,
+        username: formData.username,
+        password: formData.password,
+      })
+
       const response = await fetch('/api/init', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          bootstrapToken: formData.bootstrapToken,
-          email: formData.email,
-          username: formData.username,
-          password: formData.password,
+          encryptedPayload,
         }),
       })
 

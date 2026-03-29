@@ -8,12 +8,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useAuthTransportPublicConfig } from '@/components/providers/AuthTransportProvider'
+import { encryptAuthRequestPayload } from '@/lib/client/auth-request-crypto'
 import { toast } from 'sonner'
 import { Loader2, Lock, CheckCircle, XCircle, Eye, EyeOff, AlertTriangle } from 'lucide-react'
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
+  const authTransportConfig = useAuthTransportPublicConfig()
   
   const [loading, setLoading] = useState(false)
   const [verifying, setVerifying] = useState(true)
@@ -121,12 +124,16 @@ function ResetPasswordForm() {
     setLoading(true)
 
     try {
+      const encryptedPayload = encryptAuthRequestPayload(authTransportConfig, {
+        token,
+        password: formData.password,
+      })
+
       const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          token,
-          password: formData.password
+          encryptedPayload,
         })
       })
 

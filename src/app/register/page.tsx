@@ -7,11 +7,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useAuthTransportPublicConfig } from '@/components/providers/AuthTransportProvider'
+import { encryptAuthRequestPayload } from '@/lib/client/auth-request-crypto'
 import { toast } from 'sonner'
 import { Loader2, AlertCircle, Mail, CheckCircle, ArrowLeft } from 'lucide-react'
 
 export default function RegisterPage() {
   const router = useRouter()
+  const authTransportConfig = useAuthTransportPublicConfig()
   const [loading, setLoading] = useState(false)
   const [systemConfig, setSystemConfig] = useState<any>(null)
   const [configLoading, setConfigLoading] = useState(true)
@@ -111,13 +114,17 @@ export default function RegisterPage() {
     setLoading(true)
 
     try {
+      const encryptedPayload = encryptAuthRequestPayload(authTransportConfig, {
+        email: formData.email,
+        username: formData.username,
+        password: formData.password,
+      })
+
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: formData.email,
-          username: formData.username,
-          password: formData.password
+          encryptedPayload,
         })
       })
 

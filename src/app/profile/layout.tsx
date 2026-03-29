@@ -1,4 +1,6 @@
 import { auth } from '@/lib/auth'
+import { AuthTransportProvider } from '@/components/providers/AuthTransportProvider'
+import { getAuthTransportPublicConfig } from '@/lib/server/auth-request-crypto'
 import { redirect } from 'next/navigation'
 import { NavBar } from '@/components/layout/navbar'
 
@@ -16,7 +18,9 @@ export default async function ProfileLayout({
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
       <NavBar user={session.user} />
-      {children}
+      <AuthTransportProvider config={getAuthTransportPublicConfig()}>
+        {children}
+      </AuthTransportProvider>
     </div>
   )
 }

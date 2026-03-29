@@ -8,12 +8,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { encryptLoginRequestPayload, primeAuthTransportPublicConfig } from '@/lib/client/auth-request-crypto'
+import { useAuthTransportPublicConfig } from '@/components/providers/AuthTransportProvider'
+import { encryptAuthRequestPayload } from '@/lib/client/auth-request-crypto'
 import { toast } from 'sonner'
 import { Loader2, ArrowLeft } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
+  const authTransportConfig = useAuthTransportPublicConfig()
   const [loading, setLoading] = useState(false)
   const [systemConfig, setSystemConfig] = useState<any>(null)
   const [formData, setFormData] = useState({
@@ -23,9 +25,6 @@ export default function LoginPage() {
 
   useEffect(() => {
     fetchSystemConfig()
-    void primeAuthTransportPublicConfig().catch((error) => {
-      console.error('预热登录加密公钥失败:', error)
-    })
   }, [])
 
   const fetchSystemConfig = async () => {
@@ -45,7 +44,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const encryptedPayload = await encryptLoginRequestPayload({
+      const encryptedPayload = encryptAuthRequestPayload(authTransportConfig, {
         account: formData.account,
         password: formData.password,
       })

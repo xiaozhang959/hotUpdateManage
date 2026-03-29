@@ -1,10 +1,23 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { parseResetPasswordEncryptedPayload } from '@/lib/server/auth-request-payloads'
 
 export async function POST(req: Request) {
   try {
-    const { token, password } = await req.json()
+    const body = await req.json().catch(() => ({}))
+
+    let token: string
+    let password: string
+
+    try {
+      ({ token, password } = parseResetPasswordEncryptedPayload(body.encryptedPayload))
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : '重置密码请求解密失败，请刷新页面后重试' },
+        { status: 400 },
+      )
+    }
     
     if (!token || !password) {
       return NextResponse.json(

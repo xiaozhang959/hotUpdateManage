@@ -1,31 +1,19 @@
 import { createHash, generateKeyPairSync } from 'crypto'
 import forge from 'node-forge'
+import {
+  AUTH_REQUEST_ALGORITHM,
+  AUTH_REQUEST_VERSION,
+  type AuthTransportPublicConfig,
+  type EncryptedAuthRequestEnvelope,
+} from '@/lib/shared/auth-request-contract'
 
-const AUTH_REQUEST_VERSION = 1 as const
 const AUTH_REQUEST_MAX_AGE_MS = Number(process.env.AUTH_REQUEST_MAX_AGE_MS || 2 * 60 * 1000)
-const AUTH_REQUEST_ALGORITHM = 'RSA-OAEP-256/AES-256-GCM'
 
 interface AuthTransportKeyPair {
   kid: string
   publicKeyPem: string
   privateKeyPem: string
   source: 'env' | 'runtime-generated'
-}
-
-export interface EncryptedAuthRequestEnvelope {
-  version: typeof AUTH_REQUEST_VERSION
-  kid: string
-  key: string
-  iv: string
-  ciphertext: string
-  tag: string
-  ts: number
-}
-
-export interface DecryptedAuthRequestPayload {
-  account: string
-  password: string
-  ts: number
 }
 
 let cachedKeyPair: AuthTransportKeyPair | null = null
@@ -98,7 +86,7 @@ function getAuthTransportKeyPair(): AuthTransportKeyPair {
   return cachedKeyPair
 }
 
-export function getAuthTransportPublicConfig() {
+export function getAuthTransportPublicConfig(): AuthTransportPublicConfig {
   const pair = getAuthTransportKeyPair()
   return {
     version: AUTH_REQUEST_VERSION,
@@ -113,7 +101,7 @@ function parseEncryptedEnvelope(rawPayload: unknown): EncryptedAuthRequestEnvelo
   const parsed = typeof rawPayload === 'string' ? JSON.parse(rawPayload) : rawPayload
 
   if (!parsed || typeof parsed !== 'object') {
-    throw new Error('登录请求加密数据格式无效')
+    throw new Error('加密请求体格式无效')
   }
 
   const envelope = parsed as Partial<EncryptedAuthRequestEnvelope>
@@ -127,22 +115,22 @@ function parseEncryptedEnvelope(rawPayload: unknown): EncryptedAuthRequestEnvelo
     || typeof envelope.tag !== 'string'
     || typeof envelope.ts !== 'number'
   ) {
-    throw new Error('登录请求加密数据不完整')
+    throw new Error('加密请求体不完整')
   }
 
   return envelope as EncryptedAuthRequestEnvelope
 }
 
-export function decryptAuthRequestPayload(rawPayload: unknown): DecryptedAuthRequestPayload {
+export function decryptAuthRequestData(rawPayload: unknown): Record<string, unknown> {
   const envelope = parseEncryptedEnvelope(rawPayload)
   const pair = getAuthTransportKeyPair()
 
   if (envelope.kid !== pair.kid) {
-    throw new Error('登录加密密钥已更新，请刷新页面后重试')
+    throw new Error('加密密钥已更新，请刷新页面后重试')
   }
 
   if (Math.abs(Date.now() - envelope.ts) > AUTH_REQUEST_MAX_AGE_MS) {
-    throw new Error('登录请求已过期，请刷新页面后重试')
+    throw new Error('加密请求已过期，请刷新页面后重试')
   }
 
   try {
@@ -167,19 +155,20 @@ export function decryptAuthRequestPayload(rawPayload: unknown): DecryptedAuthReq
     }
 
     const plaintext = forge.util.decodeUtf8(decipher.output.getBytes())
-    const parsed = JSON.parse(plaintext) as Partial<DecryptedAuthRequestPayload>
+    const parsed = JSON.parse(plaintext) as Record<string, unknown>
 
-    if (typeof parsed.account !== 'string' || typeof parsed.password !== 'string') {
-      throw new Error('Missing required auth fields')
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Encrypted payload must be a JSON object')
     }
 
-    return {
-      account: parsed.account.trim(),
-      password: parsed.password,
-      ts: typeof parsed.ts === 'number' ? parsed.ts : envelope.ts,
+    const payloadTs = typeof parsed.ts === 'number' ? parsed.ts : envelope.ts
+    if (Math.abs(Date.now() - payloadTs) > AUTH_REQUEST_MAX_AGE_MS) {
+      throw new Error('Payload timestamp expired')
     }
+
+    return parsed
   } catch (error) {
-    console.error('解密登录请求失败:', error)
-    throw new Error('登录请求解密失败，请刷新页面后重试')
+    console.error('解密加密请求失败:', error)
+    throw new Error('加密请求解密失败，请刷新页面后重试')
   }
 }

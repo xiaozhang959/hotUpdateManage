@@ -2,7 +2,7 @@ import NextAuth from "next-auth"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "@/lib/prisma"
-import { decryptAuthRequestPayload } from "@/lib/server/auth-request-crypto"
+import { parseLoginEncryptedPayload } from "@/lib/server/auth-request-payloads"
 import { validateLoginCredentials } from "@/lib/server/login-auth"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -26,7 +26,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         try {
-          decryptedCredentials = decryptAuthRequestPayload(credentials.encryptedPayload)
+          decryptedCredentials = parseLoginEncryptedPayload(credentials.encryptedPayload)
         } catch {
           return null
         }

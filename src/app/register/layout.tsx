@@ -1,3 +1,5 @@
+import { AuthTransportProvider } from '@/components/providers/AuthTransportProvider'
+import { getAuthTransportPublicConfig } from '@/lib/server/auth-request-crypto'
 import { needsInitialization } from '@/lib/server/init-state'
 import { redirect } from 'next/navigation'
 
@@ -16,5 +18,9 @@ export default async function RegisterLayout({
     redirect('/init')
   }
 
-  return <>{children}</>
+  return (
+    <AuthTransportProvider config={getAuthTransportPublicConfig()}>
+      {children}
+    </AuthTransportProvider>
+  )
 }
