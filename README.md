@@ -133,6 +133,72 @@ NEXTAUTH_URL="http://localhost:3000"
 openssl rand -base64 32
 ```
 
+#### 1.1️⃣ 登录请求加密配置（推荐生产环境开启）
+
+系统已支持**密码相关请求体加密传输**，覆盖以下场景：
+
+- 登录
+- 注册
+- 初始化管理员
+- 修改密码
+- 忘记密码后的新密码提交
+- 重置密码
+
+> 说明：这套机制用于避免账号/密码以明文形式出现在请求体中，但**不能替代 HTTPS**。生产环境仍必须启用 HTTPS/TLS。
+
+**推荐配置位置：**
+
+- 本地开发：写入 `.env.local`
+- 生产环境：写入部署平台环境变量（如 Vercel / Docker / PM2 / 宝塔）
+
+需要配置的环境变量：
+
+```env
+AUTH_TRANSPORT_PUBLIC_KEY_PEM="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+AUTH_TRANSPORT_PRIVATE_KEY_PEM="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+AUTH_REQUEST_MAX_AGE_MS=120000
+```
+
+字段说明：
+
+- `AUTH_TRANSPORT_PUBLIC_KEY_PEM`：RSA 公钥，用于前端加密请求体
+- `AUTH_TRANSPORT_PRIVATE_KEY_PEM`：RSA 私钥，仅服务端解密使用，**绝不能暴露**
+- `AUTH_REQUEST_MAX_AGE_MS`：请求有效期，单位毫秒，默认 `120000`（2 分钟）
+
+**生成 RSA 密钥对：**
+
+```bash
+openssl genpkey -algorithm RSA -out auth-transport-private.pem -pkeyopt rsa_keygen_bits:2048
+openssl rsa -pubout -in auth-transport-private.pem -out auth-transport-public.pem
+```
+
+**写入 `.env.local` 时的注意事项：**
+
+- PEM 内容需要写成**单行字符串**
+- 原始换行请替换成 `\n`
+- 修改后需要**重启服务**
+
+PowerShell 可直接执行以下命令，将 PEM 转成 `.env.local` 可用格式：
+
+```powershell
+$public = (Get-Content .\auth-transport-public.pem -Raw).Trim().Replace("`r`n","\n").Replace("`n","\n")
+$private = (Get-Content .\auth-transport-private.pem -Raw).Trim().Replace("`r`n","\n").Replace("`n","\n")
+
+@"
+AUTH_TRANSPORT_PUBLIC_KEY_PEM="$public"
+AUTH_TRANSPORT_PRIVATE_KEY_PEM="$private"
+AUTH_REQUEST_MAX_AGE_MS=120000
+"@ | Set-Content -Encoding UTF8 .env.local
+```
+
+如果**未配置**上述密钥，系统会退回到**进程内临时密钥**：
+
+- 单机开发可用
+- 服务重启后旧页面可能失效
+- 不适合多实例部署
+
+因此，**生产环境务必配置固定密钥对**。
+
 #### 2️⃣ 数据库初始化
 
 ```bash
@@ -169,6 +235,9 @@ npm run db:studio
    DB_PROVIDER=postgresql
    NEXTAUTH_SECRET=<生成的密钥>
    NEXTAUTH_URL=https://your-app.vercel.app
+   AUTH_TRANSPORT_PUBLIC_KEY_PEM=<单行公钥，换行替换为 \n>
+   AUTH_TRANSPORT_PRIVATE_KEY_PEM=<单行私钥，换行替换为 \n>
+   AUTH_REQUEST_MAX_AGE_MS=120000
    ```
 4. **点击 Deploy** 等待部署完成
 
@@ -551,6 +620,7 @@ client.checkUpdate(currentVersion: "1.0.0") { result in
 
 - **API 安全**
   - ✅ 启用 HTTPS/TLS 加密传输
+  - ✅ 为登录/注册/改密等密码提交流程配置请求体加密密钥对
   - ✅ 实施速率限制（默认 60 次/分钟）
   - ✅ 验证所有输入参数
   - ✅ 使用 CORS 策略限制跨域访问

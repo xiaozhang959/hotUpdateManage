@@ -56,3 +56,6 @@ uploads/*
 # uploaded files
 /public/uploads/
 upd/
+
+.env.local
+.env.*
