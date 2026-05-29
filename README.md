@@ -1,157 +1,178 @@
-# 🚀 Hot Update Manager
+# Hot Update Manager
 
-<div align="center">
-  <h3>企业级应用热更新管理平台</h3>
-  <p>为您的应用提供安全、可靠、高效的版本管理和自动更新服务</p>
-  <br/>
-  <img src="https://img.shields.io/badge/Next.js-15.0-black?style=flat-square&logo=next.js" alt="Next.js"/>
-  <img src="https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript" alt="TypeScript"/>
-  <img src="https://img.shields.io/badge/Tailwind-4.0-38B2AC?style=flat-square&logo=tailwind-css" alt="Tailwind"/>
-  <img src="https://img.shields.io/badge/Prisma-6.0-2D3748?style=flat-square&logo=prisma" alt="Prisma"/>
-  <img src="https://img.shields.io/badge/NextAuth-5.0-purple?style=flat-square&logo=next.js" alt="NextAuth"/>
-  <img src="https://img.shields.io/badge/License-MIT-green.svg?style=flat-square" alt="License"/>
-</div>
+Hot Update Manager 是一个基于 Next.js 的应用热更新管理后台，面向
+Android APK 或其他二进制产物的版本发布、架构分发、文件上传和公开更新检查场景。
 
-## 📋 项目介绍
+当前代码库事实：
 
-Hot Update Manager 是一个专为现代应用设计的热更新管理系统，支持多项目管理、版本控制、自动更新检测等功能。无论是移动应用、桌面软件还是嵌入式系统，都可以通过本系统实现平滑的版本升级。
+- 框架：Next.js 15 App Router + React 19 + TypeScript
+- 数据库：Prisma 6，默认 SQLite，可切换 PostgreSQL / MySQL
+- 认证：NextAuth v5，支持用户登录、角色和 API Token
+- 存储：默认本地 `uploads/`，可通过存储配置使用 S3、OSS、WebDAV
+- 上传：支持普通上传、服务端分片上传、S3 预签名/Multipart 直传
 
-### 🎯 适用场景
+> README 只描述当前仓库中已经存在的能力；接口细节仍以 `src/app/api/**` 为准。
 
-- **移动应用** - iOS/Android 应用的热更新和资源包管理
-- **桌面软件** - Windows/Mac/Linux 客户端的自动更新
-- **游戏更新** - 游戏资源包和补丁的分发管理
-- **IoT 设备** - 嵌入式设备的固件升级管理
-- **Web 应用** - PWA 应用的版本控制
 
-## ✨ 核心功能
+## 核心功能
 
-### 🔐 安全认证
-- 基于 NextAuth v5 的企业级认证系统
-- 支持多角色权限管理（管理员/用户）
-- API Token 认证机制
-- 邮箱验证和密码重置功能
+### 用户与权限
 
-### 📦 项目管理
-- 多项目独立管理
-- 每个项目独立的 API 密钥
-- 项目级别的访问控制
-- 详细的项目统计信息
+- 首次初始化时创建第一个管理员账号。
+- 支持管理员和普通用户角色。
+- 支持注册、登录、邮箱验证、忘记密码和重置密码。
+- 用户可生成 Bearer Token，用于公开 API 调用。
 
-### 🔄 版本控制
-- 语义化版本管理
-- 强制更新策略配置
-- 增量更新支持
-- 多下载链接轮询分发
-- MD5 文件完整性校验
-- 详细的更新日志
+### 项目与版本
 
-### 📊 数据分析
-- API 调用统计
-- 版本下载追踪
-- 用户行为分析
-- 可视化数据报表
+- 用户可创建多个项目，每个项目拥有独立 API Key。
+- 项目支持自定义架构，例如 `arm64-v8a`、`armeabi-v7a`。
+- 版本支持更新日志、MD5、文件大小、强制更新标记和发布状态。
+- 支持设置当前版本，也支持按架构查找可用版本产物。
 
-### 🎨 用户界面
-- 现代化的管理后台
-- 响应式设计，支持移动端
-- 暗色/亮色主题切换
-- 流畅的动画效果
+### 文件与存储
 
-## 🛠 技术栈
+- 默认写入本地 `uploads/` 目录。
+- 支持用户级和全局存储配置。
+- 当前存储 Provider：`LOCAL`、`S3`、`OSS`、`WEBDAV`。
+- 支持普通上传、分片上传、断点续传状态查询和中止上传。
+- S3 支持预签名单文件上传和 Multipart 上传。
 
-### 前端技术
-- **框架**: [Next.js 15](https://nextjs.org/) - React 全栈框架
-- **语言**: [TypeScript 5](https://www.typescriptlang.org/) - 类型安全
-- **UI 框架**: [Shadcn/ui](https://ui.shadcn.com/) - 组件库
-- **样式**: [Tailwind CSS v4](https://tailwindcss.com/) - 原子化 CSS
-- **动画**: [Framer Motion](https://www.framer.com/motion/) - 动效库
-- **图表**: [Recharts](https://recharts.org/) - 数据可视化
+### 安全与运维
 
-### 后端技术
-- **ORM**: [Prisma 6](https://www.prisma.io/) - 数据库 ORM
-- **认证**: [NextAuth v5](https://authjs.dev/) - 身份认证
-- **加密**: [bcryptjs](https://github.com/dcodeIO/bcrypt.js) - 密码加密
-- **验证**: [Zod](https://zod.dev/) - Schema 验证
+- 公开 API 带速率限制。
+- 初始化接口可通过 `HOT_UPDATE_BOOTSTRAP_TOKEN` 保护。
+- 登录、注册、初始化、重置密码等密码请求支持传输层请求体加密。
+- 运行时配置支持缓存；可选 Redis。
+- 提供数据库健康检查、缓存统计等管理接口。
 
-### 数据库支持
-- **SQLite** - 本地开发（默认）
-- **PostgreSQL** - Vercel Postgres / Supabase
-- **MySQL** - PlanetScale / AWS RDS
 
-## 📦 快速开始
+## 技术栈
 
-### 系统要求
+- **Web 框架**：Next.js `15.5.9`
+- **UI**：React `19.0.0`、Tailwind CSS v4、Radix UI、Lucide React、Recharts
+- **语言**：TypeScript 5
+- **认证**：NextAuth v5 / Auth.js
+- **数据库**：Prisma `6.17.1`
+- **缓存**：内存缓存，可选 Redis（`ioredis`）
+- **对象存储**：本地文件系统、AWS S3/兼容 S3、阿里云 OSS、WebDAV
 
-- Node.js 18.17 或更高版本
-- npm / yarn / pnpm 包管理器
-- Git 版本控制
 
-### 一键安装
+## 快速开始
+
+### 环境要求
+
+- Node.js 18.18+（建议 Node.js 20 LTS 或更新的 LTS）
+- npm
+- Git
+
+### 本地启动
 
 ```bash
-# 克隆项目
-git clone https://github.com/yourusername/hot-update-manager.git
-cd hot-update-manager
-
-# 安装依赖
 npm install
-
-# 复制环境变量模板
-cp .env.example .env.local
-
-# 配置数据库（默认使用 SQLite）
+cp .env.example .env
 npm run db:setup
 npm run db:migrate
-
-# 启动开发服务器
 npm run dev
 ```
 
-🎆 访问 [http://localhost:3000](http://localhost:3000) 即可使用！
+启动后访问：
 
-### 详细安装步骤
-
-#### 1️⃣ 环境配置
-
-编辑 `.env.local` 文件：
-
-```env
-# 数据库类型选择：sqlite | postgresql | mysql
-DB_PROVIDER=sqlite
-
-# SQLite配置（本地开发）
-SQLITE_URL=file:./dev.db
-
-# NextAuth 配置
-NEXTAUTH_SECRET="your-secret-key-here"
-NEXTAUTH_URL="http://localhost:3000"
+```text
+http://localhost:3000
 ```
 
-⚠️ **安全提示**：生产环境请使用以下命令生成密钥：
+如果数据库中没有用户，系统会进入初始化流程，用于创建第一个管理员账号。
+
+> `.env` 存放真实密钥和连接串，只应保留在本地或部署平台环境变量中。
+
+
+## 环境变量
+
+`.env.example` 是当前仓库的配置模板。常用配置如下。
+
+### 最小本地配置
+
+```env
+DB_PROVIDER=sqlite
+DATABASE_URL=file:./dev.db
+SQLITE_URL=file:./dev.db
+NEXTAUTH_SECRET=replace-with-random-secret
+NEXTAUTH_URL=http://localhost:3000
+```
+
+生成 `NEXTAUTH_SECRET`：
+
 ```bash
 openssl rand -base64 32
 ```
 
-#### 1.1️⃣ 登录请求加密配置（推荐生产环境开启）
+### 数据库配置
 
-系统已支持**密码相关请求体加密传输**，覆盖以下场景：
+通过 `DB_PROVIDER` 选择数据库：
 
-- 登录
-- 注册
-- 初始化管理员
-- 修改密码
-- 忘记密码后的新密码提交
-- 重置密码
+```env
+DB_PROVIDER=sqlite       # sqlite | postgresql | mysql
+```
 
-> 说明：这套机制用于避免账号/密码以明文形式出现在请求体中，但**不能替代 HTTPS**。生产环境仍必须启用 HTTPS/TLS。
+常见连接变量：
 
-**推荐配置位置：**
+```env
+# SQLite
+DATABASE_URL=file:./dev.db
+SQLITE_URL=file:./dev.db
 
-- 本地开发：写入 `.env.local`
-- 生产环境：写入部署平台环境变量（如 Vercel / Docker / PM2 / 宝塔）
+# PostgreSQL
+POSTGRESQL_URL=postgresql://user:password@host:5432/db
+POSTGRES_PRISMA_URL=postgresql://user:password@host:5432/db
+POSTGRES_URL_NON_POOLING=postgresql://user:password@host:5432/db
+DATABASE_URL_NON_POOLING=postgresql://user:password@host:5432/db
 
-需要配置的环境变量：
+# MySQL
+MYSQL_URL=mysql://user:password@host:3306/db
+```
+
+`npm run db:setup` 会根据 `DB_PROVIDER` 选择 Prisma schema 并生成客户端。
+
+注意：该脚本在切换到 PostgreSQL 或 MySQL 时会覆盖 `prisma/schema.prisma`，
+并把原文件备份为 `prisma/schema.backup.prisma`。
+
+### 上传与缓存配置
+
+```env
+MAX_FILE_SIZE=100
+RATE_LIMIT=60
+REDIS_URL=
+
+NEXT_PUBLIC_UPLOAD_CHUNK_THRESHOLD_MB=60
+NEXT_PUBLIC_UPLOAD_RESUME_TTL_HOURS=72
+UPLOAD_SESSION_TTL_HOURS=72
+UPLOAD_SESSION_SECRET=
+
+VERSION_CACHE_TTL=60
+ROTATION_BATCH_SIZE=100
+INIT_CACHE_TTL=3600
+INIT_CACHE_STALE=300000
+```
+
+### 初始化保护
+
+公网部署建议配置：
+
+```env
+HOT_UPDATE_BOOTSTRAP_TOKEN=replace-with-random-token
+```
+
+配置后，初始化相关接口会要求携带正确令牌，降低未授权初始化风险。
+
+
+## 登录请求加密
+
+系统支持对包含密码的请求体进行加密，覆盖登录、注册、初始化、修改密码和重置密码等流程。
+
+这不是 HTTPS 的替代品。生产环境仍必须启用 HTTPS/TLS。
+
+生产环境建议配置固定 RSA 密钥对：
 
 ```env
 AUTH_TRANSPORT_PUBLIC_KEY_PEM="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
@@ -159,589 +180,325 @@ AUTH_TRANSPORT_PRIVATE_KEY_PEM="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVA
 AUTH_REQUEST_MAX_AGE_MS=120000
 ```
 
-字段说明：
-
-- `AUTH_TRANSPORT_PUBLIC_KEY_PEM`：RSA 公钥，用于前端加密请求体
-- `AUTH_TRANSPORT_PRIVATE_KEY_PEM`：RSA 私钥，仅服务端解密使用，**绝不能暴露**
-- `AUTH_REQUEST_MAX_AGE_MS`：请求有效期，单位毫秒，默认 `120000`（2 分钟）
-
-**生成 RSA 密钥对：**
+生成密钥示例：
 
 ```bash
 openssl genpkey -algorithm RSA -out auth-transport-private.pem -pkeyopt rsa_keygen_bits:2048
 openssl rsa -pubout -in auth-transport-private.pem -out auth-transport-public.pem
 ```
 
-**写入 `.env.local` 时的注意事项：**
+如果不配置固定密钥，系统会使用进程内临时密钥，适合本地开发，
+但不适合重启频繁或多实例生产部署。
 
-- PEM 内容需要写成**单行字符串**
-- 原始换行请替换成 `\n`
-- 修改后需要**重启服务**
 
-PowerShell 可直接执行以下命令，将 PEM 转成 `.env.local` 可用格式：
+## 常用命令
 
-```powershell
-$public = (Get-Content .\auth-transport-public.pem -Raw).Trim().Replace("`r`n","\n").Replace("`n","\n")
-$private = (Get-Content .\auth-transport-private.pem -Raw).Trim().Replace("`r`n","\n").Replace("`n","\n")
-
-@"
-AUTH_TRANSPORT_PUBLIC_KEY_PEM="$public"
-AUTH_TRANSPORT_PRIVATE_KEY_PEM="$private"
-AUTH_REQUEST_MAX_AGE_MS=120000
-"@ | Set-Content -Encoding UTF8 .env.local
-```
-
-如果**未配置**上述密钥，系统会退回到**进程内临时密钥**：
-
-- 单机开发可用
-- 服务重启后旧页面可能失效
-- 不适合多实例部署
-
-因此，**生产环境务必配置固定密钥对**。
-
-#### 2️⃣ 数据库初始化
+### 开发与构建
 
 ```bash
-# 根据 DB_PROVIDER 自动配置数据库
-npm run db:setup
-
-# 运行数据库迁移
-npm run db:migrate
-
-# (可选) 打开数据库管理工具
-npm run db:studio
+npm run dev           # 启动开发服务器
+npm run build         # 生产构建
+npm run build:vercel  # Prisma generate + migrate deploy + Next build
+npm run start         # 启动生产服务
+npm run lint          # ESLint 检查
 ```
 
-#### 3️⃣ 默认管理员账号
 
-首次启动后，使用以下账号登录：
-- **用户名**: admin
-- **密码**: admin123
 
-🔒 请立即修改默认密码！
-
-## 🚀 部署指南
-
-### 🌐 Vercel 部署（推荐）
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/xiaozhang959/hotUpdateManage)
-
-#### 快速部署步骤
-
-1. **点击上方按钮** 或访问 [Vercel](https://vercel.com)
-2. **导入项目** 从 GitHub/GitLab/Bitbucket
-3. **配置环境变量**：
-   ```
-   DB_PROVIDER=postgresql
-   NEXTAUTH_SECRET=<生成的密钥>
-   NEXTAUTH_URL=https://your-app.vercel.app
-   AUTH_TRANSPORT_PUBLIC_KEY_PEM=<单行公钥，换行替换为 \n>
-   AUTH_TRANSPORT_PRIVATE_KEY_PEM=<单行私钥，换行替换为 \n>
-   AUTH_REQUEST_MAX_AGE_MS=120000
-   ```
-4. **点击 Deploy** 等待部署完成
-
-#### 数据库选项
-
-| 提供商 | 特点 | 价格 |
-|---------|------|------|
-| **Vercel Postgres** | 一键集成，无需配置 | 免费套餐 |
-| **Supabase** | 功能强大，完全免费 | 永久免费 |
-| **PlanetScale** | MySQL兼容，高性能 | 免费套餐 |
-
-### 📦 Docker 部署
+### 数据库
 
 ```bash
-# 构建镜像
-docker build -t hot-update-manager .
-
-# 运行容器
-docker run -d \
-  -p 3000:3000 \
-  -e DB_PROVIDER=postgresql \
-  -e DATABASE_URL="your-database-url" \
-  -e NEXTAUTH_SECRET="your-secret" \
-  --name hot-update \
-  hot-update-manager
+npm run db:setup           # 根据 DB_PROVIDER 准备 Prisma schema 并生成客户端
+npm run db:migrate         # 开发环境创建/执行迁移
+npm run db:migrate:deploy  # 生产环境应用迁移
+npm run db:push            # 直接同步 schema，适合快速开发
+npm run db:studio          # 打开 Prisma Studio
+npm run db:seed            # 执行 prisma/seed.js
 ```
 
-#### Docker Compose 配置
+当前质量检查以 `npm run lint` 和 `npm run build` 为主。
 
-```yaml
-version: '3.8'
-services:
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - DB_PROVIDER=postgresql
-      - DATABASE_URL=${DATABASE_URL}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-    volumes:
-      - ./uploads:/app/uploads
-    restart: unless-stopped
 
-  postgres:
-    image: postgres:15
-    environment:
-      - POSTGRES_DB=hotupdate
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+## 项目结构
 
-volumes:
-  postgres_data:
-```
-
-### 🖥 VPS/云服务器部署
-
-#### 方案一：PM2 部署
-
-```bash
-# 安装依赖
-npm install --production
-
-# 构建项目
-npm run build
-
-# 使用 PM2 启动
-pm2 start ecosystem.config.js
-
-# 设置开机自启
-pm2 startup
-pm2 save
-```
-
-**ecosystem.config.js**：
-```javascript
-module.exports = {
-  apps: [{
-    name: 'hot-update-manager',
-    script: 'npm',
-    args: 'start',
-    env: {
-      NODE_ENV: 'production',
-      PORT: 3000
-    },
-    instances: 'max',
-    exec_mode: 'cluster'
-  }]
-}
-```
-
-#### 方案二：Nginx 反向代理
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-### ☁️ 其他云平台
-
-| 平台 | 特点 | 部署方式 |
-|------|------|----------|
-| **Railway** | 简单快速 | Git 自动部署 |
-| **Render** | 免费套餐 | Docker/Git |
-| **Fly.io** | 全球边缘节点 | Dockerfile |
-| **AWS** | 企业级 | EC2/ECS/Lambda |
-| **阿里云** | 国内访问快 | ECS/函数计算 |
-
-## 📁 项目结构
-
-```
+```text
 hot-update-manager/
-├── src/                      # 源代码目录
-│   ├── app/                  # Next.js App Router
-│   │   ├── api/              # RESTful API 路由
-│   │   │   ├── auth/         # 认证 API
-│   │   │   ├── projects/     # 项目 API
-│   │   │   └── versions/     # 版本 API
-│   │   ├── (auth)/           # 认证页面
-│   │   ├── dashboard/        # 用户控制台
-│   │   └── admin/            # 管理员后台
+├── src/
+│   ├── app/                  # App Router 页面和 API
+│   │   ├── api/              # API 路由
+│   │   ├── admin/            # 管理后台页面
+│   │   ├── dashboard/        # 仪表盘页面
+│   │   ├── docs/             # 前端文档页面
+│   │   ├── init/             # 首次初始化页面
+│   │   ├── login/            # 登录页面
+│   │   ├── profile/          # 个人资料和存储配置页面
+│   │   ├── projects/         # 项目管理页面
+│   │   └── register/         # 注册页面
 │   ├── components/           # React 组件
-│   │   ├── ui/               # 基础 UI 组件
-│   │   ├── auth/             # 认证相关组件
-│   │   ├── projects/         # 项目管理组件
-│   │   └── layout/           # 布局组件
-│   ├── lib/                  # 核心库
-│   │   ├── auth.ts           # NextAuth 配置
-│   │   ├── prisma.ts         # 数据库客户端
-│   │   ├── crypto.ts         # 加密工具
-│   │   └── utils.ts          # 工具函数
-│   └── types/                # TypeScript 类型定义
-├── prisma/                   # 数据库配置
-│   ├── schema.prisma         # SQLite 模型（默认）
-│   ├── schema.postgresql.prisma  # PostgreSQL 模型
-│   └── schema.mysql.prisma   # MySQL 模型
-├── scripts/                  # 脚本文件
-│   └── setup-db.js           # 数据库配置脚本
+│   ├── lib/                  # 认证、数据库、上传、缓存、存储等服务代码
+│   └── types/                # 共享类型
+├── prisma/
+│   ├── schema.prisma         # 当前 Prisma schema，默认 SQLite
+│   ├── schema.mysql.prisma   # MySQL schema 模板
+│   └── schema.postgresql.prisma
+├── scripts/
+│   └── setup-db.js           # 数据库 Provider 切换与 Prisma generate
+├── docs/                     # 优化、安全和多架构热更新相关文档
 ├── public/                   # 静态资源
+├── uploads/                  # 本地运行时上传目录
 ├── .env.example              # 环境变量模板
-├── DEPLOYMENT.md             # 部署文档
-└── package.json              # 项目配置
+└── package.json
 ```
 
-## 🔧 开发命令
 
-### 基础命令
+## API 概览
 
-```bash
-# 开发环境
-npm run dev              # 启动开发服务器 (Turbopack)
-npm run build            # 构建生产版本
-npm run build:vercel    # Vercel 专用构建
-npm start                # 启动生产服务器
-npm run lint             # 代码检查
+### 认证方式
+
+公开更新接口支持两类认证方式。
+
+项目 API Key：
+
+```http
+X-API-Key: your-project-api-key
 ```
 
-### 数据库命令
+用户 Bearer Token：
 
-```bash
-# 配置与初始化
-npm run db:setup         # 根据 DB_PROVIDER 配置数据库
-npm run db:migrate       # 创建/运行迁移（开发）
-npm run db:migrate:deploy # 应用迁移（生产）
-npm run db:push          # 直接同步架构
-npm run db:studio        # 打开可视化管理工具
-npm run db:seed          # 填充测试数据
+```http
+Authorization: Bearer your-user-token
 ```
 
-### 其他命令
+使用 Bearer Token 查询项目更新时，需要额外传入 `projectId`。
 
-```bash
-# Prisma
-npx prisma generate      # 生成客户端代码
-npx prisma format        # 格式化 schema 文件
-npx prisma validate      # 验证 schema 文件
+### 检查更新
 
-# 类型检查
-npx tsc --noEmit         # TypeScript 类型检查
+```http
+POST /api/v1/check
 ```
 
-## 📡 API 文档
+请求示例：
 
-### 🔓 认证方式
+```json
+{
+  "currentVersion": "1.0.0",
+  "architectureKey": "arm64-v8a"
+}
+```
 
-所有 API 请求需要通过以下方式之一进行认证：
+请求头示例：
 
-1. **Header 认证**（推荐）
-   ```
-   X-API-Key: your-project-api-key
-   ```
+```http
+X-API-Key: your-project-api-key
+```
 
-2. **Body 认证**
-   ```json
-   {
-     "apiKey": "your-project-api-key"
-   }
-   ```
+也可以使用兼容字段：`architecture` 或 `arch`。
 
-### 📚 核心 API
+响应示例：
 
-#### 1. 获取最新版本
+```json
+{
+  "success": true,
+  "hasUpdate": true,
+  "data": {
+    "version": "1.2.0",
+    "downloadUrl": "https://example.com/app.apk",
+    "md5": "file-md5",
+    "size": 12345678,
+    "forceUpdate": false,
+    "changelog": "更新说明",
+    "publishState": "READY",
+    "architectureKey": "arm64-v8a",
+    "architectureName": "ARM64",
+    "artifactId": "artifact-id"
+  }
+}
+```
+
+获取最新版本信息：
+
+```http
+GET /api/v1/check?architectureKey=arm64-v8a
+```
+
+### 获取最新版本
 
 ```http
 POST /api/versions/latest
 ```
 
-**请求示例：**
-```javascript
-fetch('https://your-domain.com/api/versions/latest', {
-  method: 'POST',
-  headers: {
-    'X-API-Key': 'your-project-api-key',
-    'Content-Type': 'application/json'
-  }
-})
-```
+请求体示例：
 
-**成功响应：**
 ```json
 {
-  "success": true,
-  "data": {
-    "version": "1.2.0",
-    "downloadUrl": "https://cdn.example.com/app-v1.2.0.apk",
-    "size": 12345678,
-    "downloadUrls": [
-      "https://cdn1.example.com/app-v1.2.0.apk",
-      "https://cdn2.example.com/app-v1.2.0.apk"
-    ],
-    "md5": "5d41402abc4b2a76b9719d911017c592",
-    "forceUpdate": false,
-    "changelog": "1. 修复已知问题\n2. 性能优化\n3. 新增功能",
-    "createdAt": "2024-01-15T08:00:00Z"
-  }
-}
-```
-
-#### 2. 检查版本更新
-
-```http
-POST /api/versions/check
-```
-
-**请求体：**
-```json
-{
+  "apiKey": "your-project-api-key",
   "currentVersion": "1.0.0",
-  "platform": "android"  // android, ios, windows, mac, linux
+  "architectureKey": "arm64-v8a"
 }
 ```
 
-**响应：**
+Bearer Token 方式：
+
 ```json
 {
-  "success": true,
-  "data": {
-    "hasUpdate": true,
-    "latestVersion": "1.2.0",
-    "forceUpdate": false,
-    "updateInfo": {
-      "version": "1.2.0",
-      "downloadUrl": "https://...",
-      "md5": "...",
-      "size": 52428800,  // 字节
-      "changelog": "..."
-    }
-  }
+  "projectId": "project-id",
+  "currentVersion": "1.0.0",
+  "architectureKey": "arm64-v8a"
 }
 ```
 
-#### 3. 获取版本历史
+### 上传接口
 
-```http
-GET /api/versions/history?limit=10&offset=0
+普通上传：
+
+```text
+POST /api/upload
 ```
 
-**响应：**
-```json
-{
-  "success": true,
-  "data": {
-    "versions": [
-      {
-        "version": "1.2.0",
-        "releaseDate": "2024-01-15T08:00:00Z",
-        "changelog": "...",
-        "downloads": 1250
-      }
-    ],
-    "total": 25,
-    "hasMore": true
-  }
-}
+分片上传：
+
+```text
+POST /api/uploads/initiate
+POST /api/uploads/chunk
+POST /api/uploads/complete
+POST /api/uploads/status
+POST /api/uploads/abort
 ```
 
-### 🔄 状态码
+S3 直传：
 
-| 状态码 | 说明 |
-|--------|------|
-| 200 | 请求成功 |
-| 400 | 请求参数错误 |
-| 401 | 未授权，API Key 无效 |
-| 403 | 禁止访问 |
-| 404 | 资源不存在 |
-| 429 | 请求过于频繁 |
-| 500 | 服务器内部错误 |
-
-### 📦 SDK 集成
-
-#### JavaScript/TypeScript
-
-```typescript
-import { HotUpdateClient } from '@hotupdate/client';
-
-const client = new HotUpdateClient({
-  apiKey: 'your-project-api-key',
-  baseUrl: 'https://your-domain.com'
-});
-
-// 检查更新
-const update = await client.checkUpdate('1.0.0');
-if (update.hasUpdate) {
-  await client.downloadUpdate(update.downloadUrl);
-}
+```text
+POST /api/uploads/s3/presign-single
+POST /api/uploads/s3/complete-single
+POST /api/uploads/s3/presign-part
+POST /api/uploads/s3/complete
+POST /api/uploads/s3/status
+POST /api/uploads/s3/abort
 ```
 
-#### Android (Kotlin)
+更多管理后台、项目、版本、存储配置和用户接口请查看 `src/app/api/**`。
 
-```kotlin
-val client = HotUpdateClient(
-    apiKey = "your-project-api-key",
-    baseUrl = "https://your-domain.com"
-)
 
-client.checkUpdate(currentVersion) { result ->
-    if (result.hasUpdate) {
-        client.downloadAndInstall(result.updateInfo)
-    }
-}
+## 部署说明
+
+### Vercel
+
+建议使用 PostgreSQL，并至少配置：
+
+```env
+DB_PROVIDER=postgresql
+POSTGRESQL_URL=postgresql://...
+POSTGRES_PRISMA_URL=postgresql://...
+POSTGRES_URL_NON_POOLING=postgresql://...
+DATABASE_URL_NON_POOLING=postgresql://...
+NEXTAUTH_SECRET=replace-with-random-secret
+NEXTAUTH_URL=https://your-domain.com
 ```
 
-#### iOS (Swift)
+构建命令：
 
-```swift
-let client = HotUpdateClient(
-    apiKey: "your-project-api-key",
-    baseURL: "https://your-domain.com"
-)
-
-client.checkUpdate(currentVersion: "1.0.0") { result in
-    if result.hasUpdate {
-        client.downloadUpdate(result.updateInfo)
-    }
-}
-```
-
-## 🔒 安全最佳实践
-
-### 🔐 认证与授权
-
-- **密钥管理**
-  - ✅ 使用环境变量存储敏感信息
-  - ✅ 定期轮换 API 密钥（建议 90 天）
-  - ✅ 使用强密码：至少 12 位，包含大小写、数字和特殊字符
-  - ❌ 不要在代码中硬编码密钥
-
-- **API 安全**
-  - ✅ 启用 HTTPS/TLS 加密传输
-  - ✅ 为登录/注册/改密等密码提交流程配置请求体加密密钥对
-  - ✅ 实施速率限制（默认 60 次/分钟）
-  - ✅ 验证所有输入参数
-  - ✅ 使用 CORS 策略限制跨域访问
-
-### 🗓 数据库安全
-
-- **连接安全**
-  - ✅ 使用 SSL/TLS 连接
-  - ✅ 限制数据库访问 IP
-  - ✅ 使用连接池防止连接泄漏
-  - ✅ 分离开发和生产数据库
-
-- **数据保护**
-  - ✅ 定期备份（建议每日）
-  - ✅ 加密敏感数据
-  - ✅ 实施数据访问审计
-  - ✅ 遵循 GDPR/CCPA 等隐私法规
-
-### 📁 文件上传安全
-
-- **验证策略**
-  - ✅ 限制文件大小（默认 100MB）
-  - ✅ 白名单文件类型验证
-  - ✅ 文件内容扫描（病毒检测）
-  - ✅ 重命名上传文件避免路径注入
-
-- **存储安全**
-  - ✅ 启用版本控制
-  - ✅ 设置访问权限
-
-## ❓ 常见问题 (FAQ)
-
-### Q: 如何修改默认管理员密码？
-A: 登录后进入【设置】→【修改密码】，输入原密码和新密码即可。
-
-### Q: 支持哪些文件类型的热更新？
-A: 支持所有文件类型，包括：
-- 移动应用：APK, IPA, AAB
-- 桌面程序：EXE, MSI, DMG, DEB, RPM
-- 资源文件：ZIP, TAR, 7Z
-- 补丁文件：PATCH, DIFF
-
-### Q: 如何备份数据？
-A: 
 ```bash
-# SQLite 备份
-cp prisma/dev.db prisma/backup-$(date +%Y%m%d).db
-
-# PostgreSQL/MySQL 备份
-pg_dump database_name > backup.sql
-mysqldump database_name > backup.sql
+npm run build:vercel
 ```
 
-### Q: 如何监控系统运行状态？
-A: 
-- 使用 PM2: `pm2 monit`
-- 查看日志: `pm2 logs`
-- 使用 Vercel: Dashboard 中的 Analytics 面板
+注意：Vercel 等无持久本地磁盘环境不适合依赖本地 `uploads/` 保存文件。
+生产环境建议配置 S3/OSS/WebDAV 等外部存储。S3 直传流程不依赖服务端本地分片缓存。
 
-### Q: API 调用频率限制如何调整？
-A: 修改 `.env.local` 中的 `RATE_LIMIT` 参数，默认 60 次/分钟。
+### 自托管 Node.js
 
-## 🤝 贡献指南
+```bash
+npm install
+cp .env.example .env
+npm run db:setup
+npm run db:migrate:deploy
+npm run build
+npm run start
+```
 
-我们欢迎所有形式的贡献！无论是新功能、Bug 修复还是文档改进。
+如使用 Nginx 反向代理，请确保转发 `Host`、`X-Forwarded-*` 等头，并启用 HTTPS。
 
-### 如何贡献
+当前仓库没有提供 Dockerfile 或 PM2 配置；如果需要 Docker/PM2 部署，请先补充对应配置。
 
-1. **Fork 项目**
-   ```bash
-   git clone https://github.com/xiaozhang959/hotUpdateManage.git
-   cd hotUpdateManage
-   git checkout -b feature/your-feature-name
-   ```
 
-2. **开发和测试**
-   ```bash
-   npm install
-   npm run dev
-   # 做出修改
-   npm run lint
-   npm run build
-   ```
+## 安全建议
 
-3. **提交代码**
-   ```bash
-   git add .
-   git commit -m "feat: add new feature"
-   git push origin feature/your-feature-name
-   ```
+- 不要提交 `.env`、上传文件、数据库文件或任何密钥。
+- 生产环境必须配置强随机 `NEXTAUTH_SECRET`，并建议同步配置 `AUTH_SECRET`。
+- 公网初始化建议配置 `HOT_UPDATE_BOOTSTRAP_TOKEN`。
+- 多实例部署建议配置固定 `AUTH_TRANSPORT_*_PEM`。
+- 对象存储密钥应放在环境变量、数据库加密配置或部署平台 Secret 中。
+- 生产环境建议使用 PostgreSQL/MySQL，不建议依赖本地 SQLite。
+- 使用外部对象存储时，请确认下载 URL 的访问权限和有效期策略。
+- 定期备份数据库和对象存储文件。
 
-4. **创建 Pull Request**
 
-### 代码规范
+## 常见问题
 
-- 遵循 TypeScript 类型安全
-- 使用有意义的变量名
-- 添加必要的注释
-- 编写单元测试
+### 首次管理员账号是什么？
 
-### Commit 规范
+没有固定默认账号。数据库没有用户时，首次初始化流程会创建第一个管理员账号。
 
-使用语义化版本控制：
+### 文件默认保存在哪里？
 
-- `feat`: 新功能
-- `fix`: Bug 修复
-- `docs`: 文档更新
-- `style`: 代码格式
-- `refactor`: 重构
-- `perf`: 性能优化
-- `test`: 测试
-- `chore`: 构建/工具
+默认保存到本地 `uploads/`。该目录属于运行时数据，不应提交到 Git。
+也可以在管理端或个人资料中配置 `LOCAL`、`S3`、`OSS`、`WEBDAV` 存储。
 
-## 📄 许可证
+### 为什么 Bearer Token 还要传 projectId？
 
-本项目采用 [MIT License](LICENSE) 开源许可证。
+Bearer Token 表示用户身份；用户可能拥有多个项目。因此用 Bearer Token 查询更新时，
+需要通过 `projectId` 指定目标项目。
 
----
+### 如何调整上传分片阈值？
 
-<div align="center">
-  <sub>Built with ❤️ by developers, for developers</sub>
-  <br>
-  <sub>Powered by Next.js • TypeScript • Prisma</sub>
-</div>
+修改环境变量后重启服务：
+
+```env
+NEXT_PUBLIC_UPLOAD_CHUNK_THRESHOLD_MB=60
+NEXT_PUBLIC_UPLOAD_RESUME_TTL_HOURS=72
+UPLOAD_SESSION_TTL_HOURS=72
+```
+
+### 如何查看或调整缓存？
+
+可配置 Redis 和缓存参数：
+
+```env
+REDIS_URL=redis://localhost:6379
+VERSION_CACHE_TTL=60
+ROTATION_BATCH_SIZE=100
+INIT_CACHE_TTL=3600
+INIT_CACHE_STALE=300000
+```
+
+缓存统计接口位于：
+
+```text
+GET /api/cache/stats
+```
+
+
+## 开发规范
+
+- 变更前先阅读现有实现，不臆造 API、路径或配置项。
+- 保持小步修改，避免无关重构。
+- 使用 TypeScript，保持类型清晰。
+- 提交前建议至少运行：
+
+```bash
+npm run lint
+npm run build
+```
+
+提交信息可采用 Conventional Commits：
+
+```text
+feat: add version artifact management
+fix: handle upload session expiration
+docs: update readme
+chore: update dependencies
+```
+
+
+## 许可证
+
+本项目使用 MIT License 开源，详见根目录 `LICENSE` 文件。

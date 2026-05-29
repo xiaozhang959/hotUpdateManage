@@ -2,12 +2,12 @@
   "name": "hot-update-manager",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "build:vercel": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
-    "link": "npm run lint",
     "lint": "eslint",
     "db:setup": "node scripts/setup-db.js",
     "db:migrate": "prisma migrate dev",
