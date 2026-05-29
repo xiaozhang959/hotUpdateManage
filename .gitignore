@@ -53,9 +53,19 @@ uploads/*
 # local agent tooling
 /.serena/
 
+.serena/
+
 # uploaded files
 /public/uploads/
 upd/
 
 .env.local
 .env.*
+/.claude/
+# removed local/test artifacts
+/WARP.md
+/dd_backup/
+/test-admin.md
+/test-multi-urls.js
+/test-performance.js
+/tmp_before_fix.txt
