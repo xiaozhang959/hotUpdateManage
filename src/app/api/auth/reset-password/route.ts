@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     let password: string
 
     try {
-      ({ token, password } = parseResetPasswordEncryptedPayload(body.encryptedPayload))
+      ({ token, password } = await parseResetPasswordEncryptedPayload(body.encryptedPayload))
     } catch (error) {
       return NextResponse.json(
         { error: error instanceof Error ? error.message : '重置密码请求解密失败，请刷新页面后重试' },

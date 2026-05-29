@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      decryptedCredentials = parseLoginEncryptedPayload(encryptedPayload)
+      decryptedCredentials = await parseLoginEncryptedPayload(encryptedPayload)
     } catch (error) {
       return NextResponse.json({
         success: false,

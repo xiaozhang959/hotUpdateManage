@@ -1,5 +1,6 @@
 import { createHash, generateKeyPairSync } from 'node:crypto'
 import forge from 'node-forge'
+import { prisma } from '@/lib/prisma'
 import {
   AUTH_REQUEST_ALGORITHM,
   AUTH_REQUEST_VERSION,
@@ -8,16 +9,22 @@ import {
 } from '@/lib/shared/auth-request-contract'
 
 const AUTH_REQUEST_MAX_AGE_MS = Number(process.env.AUTH_REQUEST_MAX_AGE_MS || 2 * 60 * 1000)
+const DB_KEY_PAIR_CONFIG_KEY = 'auth_transport_rsa_key_pair'
 
 interface AuthTransportKeyPair {
   kid: string
   publicKeyPem: string
   privateKeyPem: string
-  source: 'env' | 'runtime-generated'
+  source: 'env' | 'database'
 }
 
-let cachedKeyPair: AuthTransportKeyPair | null = null
-let hasWarnedAboutRuntimeKeys = false
+interface StoredAuthTransportKeyPair {
+  publicKeyPem: string
+  privateKeyPem: string
+  createdAt: string
+}
+
+let cachedKeyPairPromise: Promise<AuthTransportKeyPair> | null = null
 
 function normalizePem(input?: string | null) {
   return input?.replace(/\\n/g, '\n').trim() || ''
@@ -41,24 +48,32 @@ function buildKid(publicKeyPem: string) {
   return toBase64UrlFromBuffer(createHash('sha256').update(publicKeyPem).digest()).slice(0, 16)
 }
 
-function getAuthTransportKeyPair(): AuthTransportKeyPair {
-  if (cachedKeyPair) {
-    return cachedKeyPair
+function toKeyPair(stored: Pick<StoredAuthTransportKeyPair, 'publicKeyPem' | 'privateKeyPem'>): AuthTransportKeyPair {
+  return {
+    kid: buildKid(stored.publicKeyPem),
+    publicKeyPem: stored.publicKeyPem,
+    privateKeyPem: stored.privateKeyPem,
+    source: 'database',
   }
+}
 
-  const publicKeyPem = normalizePem(process.env.AUTH_TRANSPORT_PUBLIC_KEY_PEM)
-  const privateKeyPem = normalizePem(process.env.AUTH_TRANSPORT_PRIVATE_KEY_PEM)
+function parseStoredKeyPair(value: string): AuthTransportKeyPair | null {
+  try {
+    const parsed = JSON.parse(value) as Partial<StoredAuthTransportKeyPair>
+    const publicKeyPem = normalizePem(parsed.publicKeyPem)
+    const privateKeyPem = normalizePem(parsed.privateKeyPem)
 
-  if (publicKeyPem && privateKeyPem) {
-    cachedKeyPair = {
-      kid: buildKid(publicKeyPem),
-      publicKeyPem,
-      privateKeyPem,
-      source: 'env',
+    if (!publicKeyPem || !privateKeyPem) {
+      return null
     }
-    return cachedKeyPair
-  }
 
+    return toKeyPair({ publicKeyPem, privateKeyPem })
+  } catch {
+    return null
+  }
+}
+
+function generateStoredKeyPair(): StoredAuthTransportKeyPair {
   const generated = generateKeyPairSync('rsa', {
     modulusLength: 2048,
     publicKeyEncoding: {
@@ -71,23 +86,83 @@ function getAuthTransportKeyPair(): AuthTransportKeyPair {
     },
   })
 
-  cachedKeyPair = {
-    kid: buildKid(generated.publicKey),
+  return {
     publicKeyPem: generated.publicKey,
     privateKeyPem: generated.privateKey,
-    source: 'runtime-generated',
+    createdAt: new Date().toISOString(),
   }
-
-  if (!hasWarnedAboutRuntimeKeys) {
-    hasWarnedAboutRuntimeKeys = true
-    console.warn('[auth-request-crypto] 未配置 AUTH_TRANSPORT_PUBLIC_KEY_PEM / AUTH_TRANSPORT_PRIVATE_KEY_PEM，已使用进程内临时密钥；若服务重启或多实例部署，请改为环境变量固定密钥。')
-  }
-
-  return cachedKeyPair
 }
 
-export function getAuthTransportPublicConfig(): AuthTransportPublicConfig {
-  const pair = getAuthTransportKeyPair()
+async function readStoredKeyPair() {
+  const record = await prisma.systemConfig.findUnique({
+    where: { key: DB_KEY_PAIR_CONFIG_KEY },
+    select: { value: true },
+  })
+
+  return record ? parseStoredKeyPair(record.value) : null
+}
+
+async function getDatabaseKeyPair(): Promise<AuthTransportKeyPair> {
+  const existing = await readStoredKeyPair()
+  if (existing) {
+    return existing
+  }
+
+  const generated = generateStoredKeyPair()
+
+  try {
+    await prisma.systemConfig.create({
+      data: {
+        key: DB_KEY_PAIR_CONFIG_KEY,
+        value: JSON.stringify(generated),
+        type: 'string',
+        category: 'security',
+        description: '自动生成的认证请求 RSA 密钥对；如配置环境变量则优先使用环境变量。',
+      },
+    })
+
+    return toKeyPair(generated)
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      const concurrentExisting = await readStoredKeyPair()
+      if (concurrentExisting) {
+        return concurrentExisting
+      }
+    }
+
+    throw error
+  }
+}
+
+async function getAuthTransportKeyPair(): Promise<AuthTransportKeyPair> {
+  if (cachedKeyPairPromise) {
+    return cachedKeyPairPromise
+  }
+
+  cachedKeyPairPromise = (async () => {
+    const publicKeyPem = normalizePem(process.env.AUTH_TRANSPORT_PUBLIC_KEY_PEM)
+    const privateKeyPem = normalizePem(process.env.AUTH_TRANSPORT_PRIVATE_KEY_PEM)
+
+    if (publicKeyPem && privateKeyPem) {
+      return {
+        kid: buildKid(publicKeyPem),
+        publicKeyPem,
+        privateKeyPem,
+        source: 'env' as const,
+      }
+    }
+
+    return getDatabaseKeyPair()
+  })().catch((error) => {
+    cachedKeyPairPromise = null
+    throw error
+  })
+
+  return cachedKeyPairPromise
+}
+
+export async function getAuthTransportPublicConfig(): Promise<AuthTransportPublicConfig> {
+  const pair = await getAuthTransportKeyPair()
   return {
     version: AUTH_REQUEST_VERSION,
     kid: pair.kid,
@@ -121,9 +196,9 @@ function parseEncryptedEnvelope(rawPayload: unknown): EncryptedAuthRequestEnvelo
   return envelope as EncryptedAuthRequestEnvelope
 }
 
-export function decryptAuthRequestData(rawPayload: unknown): Record<string, unknown> {
+export async function decryptAuthRequestData(rawPayload: unknown): Promise<Record<string, unknown>> {
   const envelope = parseEncryptedEnvelope(rawPayload)
-  const pair = getAuthTransportKeyPair()
+  const pair = await getAuthTransportKeyPair()
 
   if (envelope.kid !== pair.kid) {
     throw new Error('加密密钥已更新，请刷新页面后重试')

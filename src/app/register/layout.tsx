@@ -19,7 +19,7 @@ export default async function RegisterLayout({
   }
 
   return (
-    <AuthTransportProvider config={getAuthTransportPublicConfig()}>
+    <AuthTransportProvider config={await getAuthTransportPublicConfig()}>
       {children}
     </AuthTransportProvider>
   )

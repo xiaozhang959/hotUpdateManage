@@ -81,6 +81,8 @@ HOT_UPDATE_BOOTSTRAP_TOKEN=replace-with-strong-random-bootstrap-token
 - `AUTH_SECRET`：Auth.js/NextAuth 会话密钥，可用 `openssl rand -base64 32` 生成。
 - `HOT_UPDATE_BOOTSTRAP_TOKEN`：生产环境初始化管理员账号时的保护令牌。
 - `NEXTAUTH_URL` 不再必填，系统会根据 Vercel 域名或自定义域名自动推断。
+- `AUTH_TRANSPORT_PUBLIC_KEY_PEM` / `AUTH_TRANSPORT_PRIVATE_KEY_PEM` 不再必填；
+  未配置时系统会自动生成 RSA 密钥对并保存到数据库。
 - S3、Redis、SMTP、邮件验证等都不是一键部署必填项，可部署后按需添加。
 
 Vercel 构建时会自动：

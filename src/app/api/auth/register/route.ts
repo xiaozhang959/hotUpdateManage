@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     let password: string
 
     try {
-      ({ email, username, password } = parseRegisterEncryptedPayload(body.encryptedPayload))
+      ({ email, username, password } = await parseRegisterEncryptedPayload(body.encryptedPayload))
     } catch (error) {
       return NextResponse.json(
         { error: error instanceof Error ? error.message : '注册请求解密失败，请刷新页面后重试' },

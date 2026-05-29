@@ -20,7 +20,7 @@ export async function PATCH(req: Request) {
     let newPassword: string | undefined
 
     try {
-      ({ username, currentPassword, newPassword } = parseProfileEncryptedPayload(body.encryptedPayload))
+      ({ username, currentPassword, newPassword } = await parseProfileEncryptedPayload(body.encryptedPayload))
     } catch (error) {
       return NextResponse.json(
         { error: error instanceof Error ? error.message : '个人信息更新请求解密失败，请刷新页面后重试' },

@@ -20,7 +20,7 @@ export default async function InitLayout({
   }
 
   return (
-    <AuthTransportProvider config={getAuthTransportPublicConfig()}>
+    <AuthTransportProvider config={await getAuthTransportPublicConfig()}>
       {children}
     </AuthTransportProvider>
   )

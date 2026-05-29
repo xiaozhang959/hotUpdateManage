@@ -29,7 +29,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         try {
-          decryptedCredentials = parseLoginEncryptedPayload(credentials.encryptedPayload)
+          decryptedCredentials = await parseLoginEncryptedPayload(credentials.encryptedPayload)
         } catch {
           return null
         }

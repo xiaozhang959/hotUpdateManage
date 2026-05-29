@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     let bootstrapToken: string | undefined
 
     try {
-      ({ email, username, password, bootstrapToken } = parseInitEncryptedPayload(body.encryptedPayload))
+      ({ email, username, password, bootstrapToken } = await parseInitEncryptedPayload(body.encryptedPayload))
     } catch (error) {
       return NextResponse.json(
         { error: error instanceof Error ? error.message : '初始化请求解密失败，请刷新页面后重试' },
