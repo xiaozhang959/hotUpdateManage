@@ -1,44 +1,46 @@
-FROM node:20-bookworm-slim AS deps
+# syntax=docker/dockerfile:1
 
+FROM node:20-alpine AS deps
 WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1
-
+RUN apk add --no-cache libc6-compat openssl
 COPY package.json package-lock.json ./
+COPY prisma ./prisma
 RUN npm ci
 
-FROM deps AS builder
-
-ENV DB_PROVIDER=sqlite
-ENV DATABASE_URL=file:./dev.db
-ENV SQLITE_URL=file:./dev.db
-ENV NEXTAUTH_SECRET=docker-build-secret
-ENV AUTH_SECRET=docker-build-secret
-ENV NEXTAUTH_URL=http://localhost:3000
-ENV UPLOAD_SESSION_SECRET=docker-build-upload-secret
-
-COPY . .
-RUN npx prisma generate
-RUN npm run build
-
-FROM node:20-bookworm-slim AS runner
-
+FROM node:20-alpine AS builder
 WORKDIR /app
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV HOSTNAME=0.0.0.0
-ENV PORT=3000
+RUN apk add --no-cache openssl
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    DATABASE_URL=file:./dev.db \
+    NEXTAUTH_SECRET=build-time-secret \
+    AUTH_SECRET=build-time-secret
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npm run build
+RUN npm prune --omit=dev
 
-COPY package.json package-lock.json ./
-COPY --from=builder /app/node_modules ./node_modules
-RUN npm prune --omit=dev && npm cache clean --force
+FROM node:20-alpine AS runner
+WORKDIR /app
 
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/scripts ./scripts
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    HOSTNAME=0.0.0.0 \
+    PORT=3000
 
-RUN mkdir -p /app/uploads /app/data
+RUN apk add --no-cache openssl \
+  && addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 nextjs \
+  && mkdir -p /app/data /app/public/uploads \
+  && chown -R nextjs:nodejs /app/data /app/public/uploads
 
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+
+USER nextjs
 EXPOSE 3000
 
-CMD ["npm", "run", "start"]
+CMD ["sh", "-c", "npx prisma db push && npm start"]
