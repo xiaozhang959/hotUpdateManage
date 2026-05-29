@@ -17,10 +17,37 @@ function normalizeTimeZone(value?: string) {
   }
 }
 
+const securityHeaders = [
+  {
+    key: 'Content-Security-Policy',
+    value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+  },
+  {
+    key: 'X-Frame-Options',
+    value: 'DENY',
+  },
+  {
+    key: 'X-Content-Type-Options',
+    value: 'nosniff',
+  },
+  {
+    key: 'Referrer-Policy',
+    value: 'strict-origin-when-cross-origin',
+  },
+  {
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=()',
+  },
+]
+
 const nextConfig: NextConfig = {
-  // 在构建时忽略 ESLint 错误
-  eslint: {
-    ignoreDuringBuilds: true,
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: securityHeaders,
+      },
+    ]
   },
   // 向浏览器暴露统一时区（默认上海）
   env: {
