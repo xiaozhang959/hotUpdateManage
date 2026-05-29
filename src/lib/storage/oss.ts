@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import type { StorageProvider, PutParams, PutResult } from './types'
 
-type OSSConfig = {
+export type OSSConfig = {
   region: string
   bucket: string
   accessKeyId: string

@@ -89,7 +89,7 @@ http://localhost:3000
 
 ## 环境变量
 
-`.env.example` 是当前仓库的配置模板。常用配置如下。
+`.env.example` 是本地开发配置模板；生产环境可参考 `.env.production.example`。常用配置如下。
 
 ### 最小本地配置
 
@@ -201,6 +201,7 @@ npm run build         # 生产构建
 npm run build:vercel  # Prisma generate + migrate deploy + Next build
 npm run start         # 启动生产服务
 npm run lint          # ESLint 检查
+npm run test          # Vitest 单元测试
 ```
 
 
@@ -216,7 +217,7 @@ npm run db:studio          # 打开 Prisma Studio
 npm run db:seed            # 执行 prisma/seed.js
 ```
 
-当前质量检查以 `npm run lint`、`npm run build` 和 GitHub Actions CI 为主。
+当前质量检查以 `npm run lint`、`npm run test`、`npm run build` 和 GitHub Actions CI 为主。
 
 
 ## 项目结构
@@ -507,6 +508,7 @@ GET /api/cache/stats
 
 ```bash
 npm run lint
+npm run test
 npm run build
 ```
 

@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import type { StorageProvider, PutParams, PutResult } from './types'
 import { createReadStream } from 'fs'
 
-type S3Config = {
+export type S3Config = {
   region: string
   bucket: string
   accessKeyId: string
@@ -72,7 +72,7 @@ export function createS3Provider(raw: Partial<S3Config>): StorageProvider {
         ...(cfg.endpoint ? { endpoint: cfg.endpoint } : {}),
         ...(cfg.forcePathStyle ? { forcePathStyle: true } : {})
       })
-      const Body: any = stream ? stream : (filePath ? createReadStream(filePath) : buffer)
+      const Body = stream ?? (filePath ? createReadStream(filePath) : buffer)
       await client.send(new PutObjectCommand({
         Bucket: cfg.bucket,
         Key: key,

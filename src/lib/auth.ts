@@ -1,12 +1,15 @@
 import NextAuth from "next-auth"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import CredentialsProvider from "next-auth/providers/credentials"
+import type { Adapter } from "next-auth/adapters"
 import { prisma } from "@/lib/prisma"
 import { parseLoginEncryptedPayload } from "@/lib/server/auth-request-payloads"
 import { validateLoginCredentials } from "@/lib/server/login-auth"
 
+const adapter = PrismaAdapter(prisma) as unknown as Adapter
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma) as any,
+  adapter,
   session: { strategy: "jwt" },
   trustHost: true,
   providers: [

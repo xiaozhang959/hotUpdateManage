@@ -7,7 +7,7 @@ export async function GET() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: '未授权' }, { status: 401 })
   }
-  const items = await (prisma as any).storageConfig.findMany({ where: { userId: session.user.id }, orderBy: { createdAt: 'desc' } })
+  const items = await prisma.storageConfig.findMany({ where: { userId: session.user.id }, orderBy: { createdAt: 'desc' } })
   return NextResponse.json({ success: true, data: items })
 }
 
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (isDefault) {
-    await (prisma as any).storageConfig.updateMany({ where: { userId: session.user.id }, data: { isDefault: false } })
+    await prisma.storageConfig.updateMany({ where: { userId: session.user.id }, data: { isDefault: false } })
   }
 
   const data = {
@@ -35,9 +35,9 @@ export async function POST(req: NextRequest) {
   }
   let saved
   if (id) {
-    saved = await (prisma as any).storageConfig.update({ where: { id, }, data })
+    saved = await prisma.storageConfig.update({ where: { id, }, data })
   } else {
-    saved = await (prisma as any).storageConfig.create({ data })
+    saved = await prisma.storageConfig.create({ data })
   }
   return NextResponse.json({ success: true, data: saved })
 }
@@ -50,6 +50,6 @@ export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id 必填' }, { status: 400 })
-  await (prisma as any).storageConfig.delete({ where: { id, userId: session.user.id } }).catch(() => {})
+  await prisma.storageConfig.delete({ where: { id, userId: session.user.id } }).catch(() => {})
   return NextResponse.json({ success: true })
 }

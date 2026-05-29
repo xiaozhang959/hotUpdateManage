@@ -2,8 +2,10 @@ import { prisma } from '@/lib/prisma'
 import { createLocalProvider } from './local'
 import { createWebDAVProvider } from './webdav'
 import { createS3Provider } from './s3'
+import type { S3Config } from './s3'
 import { createOSSProvider } from './oss'
-import type { StorageProvider, ProviderConfig } from './types'
+import type { OSSConfig } from './oss'
+import type { StorageProvider, ProviderConfig, LocalConfig, WebDAVConfig } from './types'
 
 export interface ActiveStorageSelection {
   scope: 'user' | 'global' | 'fallback'
@@ -23,12 +25,12 @@ export interface AvailableStorageConfigItem {
 export async function listAvailableStorageConfigs(ownerUserId?: string | null) {
   const [ownerItems, globalItems] = await Promise.all([
     ownerUserId
-      ? (prisma as any).storageConfig.findMany({
+      ? prisma.storageConfig.findMany({
           where: { userId: ownerUserId },
           orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
         })
       : Promise.resolve([]),
-    (prisma as any).storageConfig.findMany({
+    prisma.storageConfig.findMany({
       where: { userId: null },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
     }),
@@ -51,7 +53,7 @@ export async function getActiveStorageProvider(userId?: string | null): Promise<
   // 用户级默认
   try {
     if (userId) {
-      const userCfg = await (prisma as any).storageConfig.findFirst({
+      const userCfg = await prisma.storageConfig.findFirst({
         where: { userId, isDefault: true }
       })
       if (userCfg) {
@@ -64,7 +66,7 @@ export async function getActiveStorageProvider(userId?: string | null): Promise<
 
   // 全局默认
   try {
-    const globalCfg = await (prisma as any).storageConfig.findFirst({
+    const globalCfg = await prisma.storageConfig.findFirst({
       where: { userId: null, isDefault: true }
     })
     if (globalCfg) {
@@ -82,13 +84,13 @@ function buildProvider(name: string, json: string): StorageProvider {
   const cfg = parseConfig(json)
   switch (name) {
     case 'LOCAL':
-      return createLocalProvider(cfg as any)
+      return createLocalProvider(cfg as LocalConfig)
     case 'WEBDAV':
-      return createWebDAVProvider(cfg as any)
+      return createWebDAVProvider(cfg as WebDAVConfig)
     case 'S3':
-      return createS3Provider(cfg as any)
+      return createS3Provider(cfg as Partial<S3Config>)
     case 'OSS':
-      return createOSSProvider(cfg as any)
+      return createOSSProvider(cfg as Partial<OSSConfig>)
     default:
       return createLocalProvider()
   }
@@ -104,7 +106,7 @@ function parseConfig(json: string): ProviderConfig {
 
 export async function getStorageConfigById(id: string, ownerUserId?: string | null) {
   try {
-    const cfg = await (prisma as any).storageConfig.findUnique({ where: { id } })
+    const cfg = await prisma.storageConfig.findUnique({ where: { id } })
     if (!cfg) return null
     if (ownerUserId !== undefined && cfg.userId !== null && cfg.userId !== ownerUserId) {
       return null

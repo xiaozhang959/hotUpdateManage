@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -13,11 +14,11 @@ export async function GET(req: NextRequest) {
   // 便捷：scope=user 且未显式传入 userId，则使用当前管理员ID
   if (scope === 'user' && !userId) userId = session.user.id
 
-  const where: any = {}
+  const where: Prisma.StorageConfigWhereInput = {}
   if (scope === 'global') where.userId = null
   if (scope === 'user' && userId) where.userId = userId
 
-  const items = await (prisma as any).storageConfig.findMany({ where, orderBy: { createdAt: 'desc' } })
+  const items = await prisma.storageConfig.findMany({ where, orderBy: { createdAt: 'desc' } })
   return NextResponse.json({ success: true, data: items })
 }
 
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
 
   // 若设为默认，取消同作用域其他默认
   if (isDefault) {
-    await (prisma as any).storageConfig.updateMany({ where: { userId: ownerId }, data: { isDefault: false } })
+    await prisma.storageConfig.updateMany({ where: { userId: ownerId }, data: { isDefault: false } })
   }
 
   const data = {
@@ -51,9 +52,9 @@ export async function POST(req: NextRequest) {
 
   let saved
   if (id) {
-    saved = await (prisma as any).storageConfig.update({ where: { id }, data })
+    saved = await prisma.storageConfig.update({ where: { id }, data })
   } else {
-    saved = await (prisma as any).storageConfig.create({ data })
+    saved = await prisma.storageConfig.create({ data })
   }
   return NextResponse.json({ success: true, data: saved })
 }
@@ -66,6 +67,6 @@ export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id 必填' }, { status: 400 })
-  await (prisma as any).storageConfig.delete({ where: { id } }).catch(() => {})
+  await prisma.storageConfig.delete({ where: { id } }).catch(() => {})
   return NextResponse.json({ success: true })
 }

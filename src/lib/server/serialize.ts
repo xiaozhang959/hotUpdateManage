@@ -1,5 +1,8 @@
 // Utilities to safely serialize DB values for JSON responses
 
+type SerializableSize = bigint | number | string | null | undefined
+type WithSerializedSize<T> = Omit<T, 'size'> & { size?: number | string | null }
+
 export function safeNumberFromBigInt(value: bigint | null | undefined): number | string | null {
   if (value === null || value === undefined) return null
   const maxSafe = BigInt(Number.MAX_SAFE_INTEGER)
@@ -10,11 +13,14 @@ export function safeNumberFromBigInt(value: bigint | null | undefined): number |
   return value.toString()
 }
 
-export function withSerializedSize<T extends { size?: any }>(obj: T): T & { size?: number | string | null } {
-  if (!('size' in obj)) return obj as any
-  const v = (obj as any).size
-  if (typeof v === 'bigint') {
-    return { ...obj, size: safeNumberFromBigInt(v as bigint) }
+export function withSerializedSize<T extends { size?: SerializableSize }>(obj: T): WithSerializedSize<T> {
+  if (!Object.prototype.hasOwnProperty.call(obj, 'size')) {
+    return obj as WithSerializedSize<T>
   }
-  return obj as any
+
+  if (typeof obj.size === 'bigint') {
+    return { ...obj, size: safeNumberFromBigInt(obj.size) }
+  }
+
+  return obj as WithSerializedSize<T>
 }
