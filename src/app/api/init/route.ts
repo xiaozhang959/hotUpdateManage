@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import {
   markInitializationCompleted,
   needsInitialization,
+  persistInitializationCompleted,
 } from '@/lib/server/init-state'
 import { parseInitEncryptedPayload } from '@/lib/server/auth-request-payloads'
 import { revalidatePath } from 'next/cache'
@@ -43,9 +44,12 @@ export async function POST(request: NextRequest) {
     }
     
     // 2. 直接查询数据库再次确认
-    const userCount = await prisma.user.count()
-    if (userCount > 0) {
-      markInitializationCompleted(userCount)
+    const adminCount = await prisma.user.count({
+      where: { role: 'ADMIN' },
+    })
+    if (adminCount > 0) {
+      await persistInitializationCompleted()
+      markInitializationCompleted(adminCount)
       return NextResponse.json(
         { error: '系统已经初始化' },
         { status: 400 }
@@ -80,14 +84,20 @@ export async function POST(request: NextRequest) {
     // 加密密码
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // 创建第一个管理员用户
-    const admin = await prisma.user.create({
-      data: {
-        email,
-        username,
-        password: hashedPassword,
-        role: 'ADMIN', // 设置为管理员角色
-      },
+    // 创建第一个管理员用户，并同时写入初始化完成标记
+    const admin = await prisma.$transaction(async (tx) => {
+      const createdAdmin = await tx.user.create({
+        data: {
+          email,
+          username,
+          password: hashedPassword,
+          role: 'ADMIN', // 设置为管理员角色
+        },
+      })
+
+      await persistInitializationCompleted(tx)
+
+      return createdAdmin
     })
 
     // 当前实例已明确完成初始化，直接提升为已初始化快照

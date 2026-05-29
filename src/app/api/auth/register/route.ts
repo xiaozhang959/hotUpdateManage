@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { getConfig } from '@/lib/system-config'
-import { markInitializationCompleted } from '@/lib/server/init-state'
 import { parseRegisterEncryptedPayload } from '@/lib/server/auth-request-payloads'
 import { getBaseUrl } from '@/lib/server/request-url'
 import { sendEmail, generateVerificationEmail } from '@/lib/mailer'
@@ -102,10 +101,7 @@ export async function POST(req: Request) {
         emailVerified: true
       }
     })
-    
-    // 创建任意用户后，当前实例即可视为已初始化
-    markInitializationCompleted()
-    
+
     // 发送验证邮件
     if (requireEmailVerification && smtpEnabled && verificationToken) {
       const baseUrl = getBaseUrl(req)

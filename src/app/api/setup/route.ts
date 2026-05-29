@@ -3,6 +3,10 @@ import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { parseInitEncryptedPayload } from '@/lib/server/auth-request-payloads'
 import { requireBootstrapToken } from '@/lib/security/bootstrap'
+import {
+  markInitializationCompleted,
+  persistInitializationCompleted,
+} from '@/lib/server/init-state'
 
 export async function GET(req: Request) {
   try {
@@ -78,23 +82,31 @@ export async function POST(req: Request) {
       )
     }
 
-    // 创建第一个管理员
+    // 创建第一个管理员，并同时写入初始化完成标记
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    const admin = await prisma.user.create({
-      data: {
-        email,
-        username,
-        password: hashedPassword,
-        role: 'ADMIN'
-      },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        role: true
-      }
+    const admin = await prisma.$transaction(async (tx) => {
+      const createdAdmin = await tx.user.create({
+        data: {
+          email,
+          username,
+          password: hashedPassword,
+          role: 'ADMIN'
+        },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          role: true
+        }
+      })
+
+      await persistInitializationCompleted(tx)
+
+      return createdAdmin
     })
+
+    markInitializationCompleted(1)
 
     return NextResponse.json({
       message: '管理员创建成功',

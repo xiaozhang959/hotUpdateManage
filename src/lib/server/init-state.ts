@@ -1,4 +1,7 @@
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
+
+export const INITIALIZATION_CONFIG_KEY = 'system_initialized_at'
 
 export interface InitializationStatus {
   isInitialized: boolean
@@ -35,18 +38,62 @@ function createSafeFallbackStatus(): InitializationStatus {
 async function readInitializationStatusFromDatabase(
   reason: 'startup' | 'live-refresh',
 ): Promise<InitializationStatus> {
-  const userCount = await prisma.user.count()
+  const initializedConfig = await prisma.systemConfig.findUnique({
+    where: { key: INITIALIZATION_CONFIG_KEY },
+    select: { value: true },
+  })
+
+  if (initializedConfig?.value) {
+    const status: InitializationStatus = {
+      isInitialized: true,
+      userCount: 1,
+      checkedAt: new Date().toISOString(),
+    }
+
+    console.log(
+      `[InitState] ${reason === 'startup' ? '启动阶段' : '运行期'}读取初始化状态: 已初始化 (source=system_config)`,
+    )
+
+    return status
+  }
+
+  const adminCount = await prisma.user.count({
+    where: { role: 'ADMIN' },
+  })
+
   const status: InitializationStatus = {
-    isInitialized: userCount > 0,
-    userCount,
+    isInitialized: adminCount > 0,
+    userCount: adminCount,
     checkedAt: new Date().toISOString(),
   }
 
+  if (status.isInitialized) {
+    await persistInitializationCompleted()
+  }
+
   console.log(
-    `[InitState] ${reason === 'startup' ? '启动阶段' : '运行期'}读取初始化状态: ${status.isInitialized ? '已初始化' : '未初始化'} (userCount=${userCount})`,
+    `[InitState] ${reason === 'startup' ? '启动阶段' : '运行期'}读取初始化状态: ${status.isInitialized ? '已初始化' : '未初始化'} (adminCount=${adminCount})`,
   )
 
   return status
+}
+
+export async function persistInitializationCompleted(
+  client: Prisma.TransactionClient | typeof prisma = prisma,
+) {
+  await client.systemConfig.upsert({
+    where: { key: INITIALIZATION_CONFIG_KEY },
+    update: {
+      value: new Date().toISOString(),
+    },
+    create: {
+      key: INITIALIZATION_CONFIG_KEY,
+      value: new Date().toISOString(),
+      type: 'string',
+      category: 'security',
+      description: '系统初始化完成时间；存在该值表示已完成管理员初始化。',
+    },
+  })
 }
 
 function rememberInitializedStatus(status: InitializationStatus) {
