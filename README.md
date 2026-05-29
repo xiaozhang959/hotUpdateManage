@@ -417,7 +417,28 @@ npm run start
 
 如使用 Nginx 反向代理，请确保转发 `Host`、`X-Forwarded-*` 等头，并启用 HTTPS。
 
-当前仓库没有提供 Dockerfile 或 PM2 配置；如果需要 Docker/PM2 部署，请先补充对应配置。
+### Docker
+
+当前仓库提供基础 `Dockerfile`，默认按 SQLite schema 构建，适合本地或单机试用：
+
+```bash
+docker build -t hot-update-manager .
+docker run --rm --env-file .env -v hot-update-data:/app/data hot-update-manager npm run db:push
+docker run -d --name hot-update-manager --env-file .env -p 3000:3000 \
+  -v hot-update-data:/app/data \
+  -v hot-update-uploads:/app/uploads \
+  hot-update-manager
+```
+
+SQLite 容器部署建议在 `.env` 中使用容器内持久化路径：
+
+```env
+DATABASE_URL=file:/app/data/dev.db
+SQLITE_URL=file:/app/data/dev.db
+```
+
+生产环境仍建议使用 PostgreSQL/MySQL 和外部对象存储。由于 Prisma Provider 由构建时
+schema 决定，使用 PostgreSQL/MySQL 时请确保镜像按目标数据库 schema 构建并配置对应连接串。
 
 
 ## 安全建议
