@@ -1,7 +1,7 @@
 import { mkdir, rename, writeFile } from 'fs/promises'
 import { existsSync, createReadStream, createWriteStream } from 'fs'
 import path from 'path'
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import type { StorageProvider, PutParams, PutResult, LocalConfig } from './types'
 
 const defaultCfg: Required<Pick<LocalConfig, 'publicPrefix' | 'baseDir'>> = {

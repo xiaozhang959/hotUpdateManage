@@ -5,7 +5,7 @@ import { getConfig } from '@/lib/system-config'
 import { markInitializationCompleted } from '@/lib/server/init-state'
 import { parseRegisterEncryptedPayload } from '@/lib/server/auth-request-payloads'
 import { sendEmail, generateVerificationEmail } from '@/lib/mailer'
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 
 export async function POST(req: Request) {
   try {

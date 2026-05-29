@@ -1,4 +1,4 @@
-import { createHash } from 'crypto'
+import { createHash } from 'node:crypto'
 import path from 'path'
 import { Prisma, PrismaClient, ProjectArchitecture } from '@prisma/client'
 import { getConfig } from '@/lib/system-config'

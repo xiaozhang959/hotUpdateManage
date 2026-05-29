@@ -1,7 +1,7 @@
 import { promises as fsp } from 'fs'
 import { existsSync, createWriteStream, createReadStream } from 'fs'
 import path from 'path'
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import { getActiveStorageProvider, getProviderByConfigId } from '@/lib/storage'
 import type { StorageProvider } from '@/lib/storage/types'
 import { prisma } from '@/lib/prisma'

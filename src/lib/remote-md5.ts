@@ -1,4 +1,4 @@
-import { createHash } from 'crypto'
+import { createHash } from 'node:crypto'
 import { existsSync, createReadStream, readdirSync } from 'fs'
 import { stat } from 'fs/promises'
 import path from 'path'

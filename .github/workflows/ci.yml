@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-build:
+    name: Lint and build
+    runs-on: ubuntu-latest
+    env:
+      DB_PROVIDER: sqlite
+      DATABASE_URL: file:./dev.db
+      SQLITE_URL: file:./dev.db
+      NEXTAUTH_SECRET: ci-nextauth-secret-for-build-only
+      AUTH_SECRET: ci-nextauth-secret-for-build-only
+      NEXTAUTH_URL: http://localhost:3000
+      UPLOAD_SESSION_SECRET: ci-upload-session-secret-for-build-only
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build

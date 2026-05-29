@@ -1,4 +1,4 @@
-import { createHash, generateKeyPairSync } from 'crypto'
+import { createHash, generateKeyPairSync } from 'node:crypto'
 import forge from 'node-forge'
 import {
   AUTH_REQUEST_ALGORITHM,

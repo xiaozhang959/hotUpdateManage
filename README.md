@@ -216,7 +216,7 @@ npm run db:studio          # 打开 Prisma Studio
 npm run db:seed            # 执行 prisma/seed.js
 ```
 
-当前质量检查以 `npm run lint` 和 `npm run build` 为主。
+当前质量检查以 `npm run lint`、`npm run build` 和 GitHub Actions CI 为主。
 
 
 ## 项目结构

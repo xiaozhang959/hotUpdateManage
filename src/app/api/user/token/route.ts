@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 
 // Get current user's API token
 export async function GET() {

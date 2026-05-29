@@ -1,4 +1,4 @@
-import { createHash } from 'crypto'
+import { createHash } from 'node:crypto'
 import { Prisma, PrismaClient } from '@prisma/client'
 import { versionCache } from '@/lib/cache/version-cache'
 import { deleteFile } from '@/lib/fileUtils'

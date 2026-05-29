@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getConfig } from '@/lib/system-config'
 import { sendEmail, generateVerificationEmail } from '@/lib/mailer'
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 
 export async function POST() {
   try {

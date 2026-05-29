@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import type { StorageProvider, PutParams, PutResult } from './types'
 
 type OSSConfig = {

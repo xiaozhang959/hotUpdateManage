@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 
 export function generateApiKey(): string {
   return crypto.randomBytes(32).toString('hex')
