@@ -15,11 +15,6 @@ const globalForPrisma = globalThis as unknown as {
 
 // 配置连接池和查询日志
 const prismaClientOptions: Prisma.PrismaClientOptions = {
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
   // 日志配置（开发环境启用）
   log: process.env.NODE_ENV === 'development' 
     ? [

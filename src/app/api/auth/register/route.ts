@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import { getConfig } from '@/lib/system-config'
 import { markInitializationCompleted } from '@/lib/server/init-state'
 import { parseRegisterEncryptedPayload } from '@/lib/server/auth-request-payloads'
+import { getBaseUrl } from '@/lib/server/request-url'
 import { sendEmail, generateVerificationEmail } from '@/lib/mailer'
 import crypto from 'node:crypto'
 
@@ -107,7 +108,7 @@ export async function POST(req: Request) {
     
     // 发送验证邮件
     if (requireEmailVerification && smtpEnabled && verificationToken) {
-      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+      const baseUrl = getBaseUrl(req)
       const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${verificationToken}`
       
       const { subject, html } = generateVerificationEmail(username, verificationUrl)

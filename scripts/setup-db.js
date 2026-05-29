@@ -82,7 +82,10 @@ if (config.schemaFile === 'schema.prisma' && fs.existsSync(targetSchema)) {
 
 // 设置环境变量到 .env.local（如果不存在）
 const envLocalPath = path.join(__dirname, '..', '.env.local');
-if (!fs.existsSync(envLocalPath)) {
+const shouldWriteEnvLocal = !process.env.VERCEL && !process.env.CI;
+if (!shouldWriteEnvLocal) {
+  console.log('ℹ️ CI/Vercel 环境跳过 .env.local 写入');
+} else if (!fs.existsSync(envLocalPath)) {
   const envContent = Object.entries(config.envVars)
     .filter(([key, value]) => value)
     .map(([key, value]) => `${key}=${value}`)

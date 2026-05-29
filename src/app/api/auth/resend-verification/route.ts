@@ -3,9 +3,10 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getConfig } from '@/lib/system-config'
 import { sendEmail, generateVerificationEmail } from '@/lib/mailer'
+import { getBaseUrl } from '@/lib/server/request-url'
 import crypto from 'node:crypto'
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const session = await auth()
     
@@ -79,7 +80,7 @@ export async function POST() {
     })
     
     // 发送验证邮件
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    const baseUrl = getBaseUrl(req)
     const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${verificationToken}`
     
     const { subject, html } = generateVerificationEmail(user.username, verificationUrl)

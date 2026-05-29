@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getConfig } from '@/lib/system-config'
 import { sendEmail, generatePasswordResetEmail } from '@/lib/mailer'
+import { getBaseUrl } from '@/lib/server/request-url'
 import crypto from 'node:crypto'
 
 export async function POST(req: Request) {
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
     })
     
     // 发送重置邮件
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    const baseUrl = getBaseUrl(req)
     const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`
     
     const { subject, html } = generatePasswordResetEmail(user.username, resetUrl)
