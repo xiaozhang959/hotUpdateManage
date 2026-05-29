@@ -1,0 +1,29 @@
+services:
+  hot-update-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hot-update-manager:latest
+    container_name: hot-update-manager
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      DB_PROVIDER: sqlite
+      DATABASE_URL: file:/app/data/dev.db
+      SQLITE_URL: file:/app/data/dev.db
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: change-this-secret-before-production
+      AUTH_SECRET: change-this-secret-before-production
+      HOT_UPDATE_BOOTSTRAP_TOKEN: change-this-bootstrap-token-before-production
+      UPLOAD_SESSION_SECRET: change-this-upload-session-secret-before-production
+      TZ: Asia/Shanghai
+      NEXT_PUBLIC_TZ: Asia/Shanghai
+    volumes:
+      - hot-update-data:/app/data
+      - hot-update-uploads:/app/public/uploads
+
+volumes:
+  hot-update-data:
+  hot-update-uploads:

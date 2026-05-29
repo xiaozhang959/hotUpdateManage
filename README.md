@@ -420,23 +420,31 @@ npm run start
 
 ### Docker
 
-当前仓库提供基础 `Dockerfile`，默认按 SQLite schema 构建，适合本地或单机试用：
+当前仓库提供基础 `Dockerfile` 和 `dockercompose.yml`，默认按 SQLite schema 构建，适合本地或单机试用：
 
 ```bash
 docker build -t hot-update-manager .
-docker run --rm --env-file .env -v hot-update-data:/app/data hot-update-manager npm run db:push
 docker run -d --name hot-update-manager --env-file .env -p 3000:3000 \
   -v hot-update-data:/app/data \
-  -v hot-update-uploads:/app/uploads \
+  -v hot-update-uploads:/app/public/uploads \
   hot-update-manager
 ```
 
-SQLite 容器部署建议在 `.env` 中使用容器内持久化路径：
+也可以直接使用 Compose：
+
+```bash
+docker compose -f dockercompose.yml up -d --build
+```
+
+SQLite 容器部署建议在 `.env` 或 Compose 环境变量中使用容器内持久化路径：
 
 ```env
 DATABASE_URL=file:/app/data/dev.db
 SQLITE_URL=file:/app/data/dev.db
 ```
+
+`dockercompose.yml` 会持久化 SQLite 数据目录 `/app/data` 和本地上传目录 `/app/public/uploads`。
+首次启动容器时会执行 `prisma db push`，然后启动 Next.js 生产服务。
 
 生产环境仍建议使用 PostgreSQL/MySQL 和外部对象存储。由于 Prisma Provider 由构建时
 schema 决定，使用 PostgreSQL/MySQL 时请确保镜像按目标数据库 schema 构建并配置对应连接串。
