@@ -1,7 +1,7 @@
 # Hot Update Manager
 
-Hot Update Manager 是一个基于 Next.js 的应用热更新管理后台，面向
-Android APK 或其他二进制产物的版本发布、架构分发、文件上传和公开更新检查场景。
+Hot Update Manager 是一个基于 Next.js 的应用热更新管理后台（应用版本管理系统），面向
+ APK、懒人精灵脚本热更新、autogo二进制热更新 或其他二进制产物的版本发布、架构分发、文件上传和公开更新检查场景。
 
 当前代码库事实：
 
