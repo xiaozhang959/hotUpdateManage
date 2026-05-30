@@ -41,6 +41,19 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  // 避免 Vercel/Next 文件追踪把运行期上传文件或构建缓存打进 Serverless Function。
+  // 本地存储在运行时按路径读取，不应该作为部署产物随函数一起上传。
+  outputFileTracingExcludes: {
+    '/**': [
+      './.git/**/*',
+      './.next/cache/**/*',
+      './.env*',
+      './uploads/**/*',
+      './public/uploads/**/*',
+      './upd/**/*',
+      './*.zip',
+    ],
+  },
   async headers() {
     return [
       {

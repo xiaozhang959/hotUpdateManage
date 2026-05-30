@@ -38,4 +38,4 @@ defaultEnv('UPLOAD_SESSION_TTL_HOURS', '72')
 
 run('node scripts/setup-db.js')
 run('npx prisma db push --skip-generate')
-run('next build')
+run('npm run build')
