@@ -47,3 +47,48 @@ export function extractClientInfo(headers: Headers) {
     ipAddress
   }
 }
+
+interface ApiRequestLoggingContext {
+  setProjectId: (projectId?: string | null) => void
+}
+
+/**
+ * 包装 API 路由处理器，统一记录真实请求结果。
+ * 日志失败由 logApiRequest 内部吞掉，不影响主业务响应。
+ */
+export async function withApiRequestLogging(
+  request: Request,
+  endpoint: string,
+  handler: (context: ApiRequestLoggingContext) => Promise<Response>,
+) {
+  const startTime = Date.now()
+  let projectId: string | null = null
+  const clientInfo = extractClientInfo(request.headers)
+
+  const setProjectId = (value?: string | null) => {
+    projectId = value || null
+  }
+
+  try {
+    const response = await handler({ setProjectId })
+    await logApiRequest({
+      endpoint,
+      method: request.method,
+      statusCode: response.status,
+      responseTime: Date.now() - startTime,
+      ...clientInfo,
+      projectId,
+    })
+    return response
+  } catch (error) {
+    await logApiRequest({
+      endpoint,
+      method: request.method,
+      statusCode: 500,
+      responseTime: Date.now() - startTime,
+      ...clientInfo,
+      projectId,
+    })
+    throw error
+  }
+}

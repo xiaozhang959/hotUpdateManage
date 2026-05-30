@@ -1,6 +1,7 @@
 // Utilities to safely serialize DB values for JSON responses
 
 type SerializableSize = bigint | number | string | null | undefined
+type SerializableObject = Record<string, unknown> & { size?: SerializableSize }
 type WithSerializedSize<T> = Omit<T, 'size'> & { size?: number | string | null }
 
 export function safeNumberFromBigInt(value: bigint | null | undefined): number | string | null {
@@ -13,7 +14,7 @@ export function safeNumberFromBigInt(value: bigint | null | undefined): number |
   return value.toString()
 }
 
-export function withSerializedSize<T extends { size?: SerializableSize }>(obj: T): WithSerializedSize<T> {
+export function withSerializedSize<T extends SerializableObject>(obj: T): WithSerializedSize<T> {
   if (!Object.prototype.hasOwnProperty.call(obj, 'size')) {
     return obj as WithSerializedSize<T>
   }

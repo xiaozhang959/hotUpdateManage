@@ -3,6 +3,7 @@ import { validateApiKey, validateBearerToken } from '@/lib/auth-bearer'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getLatestAvailableVersionForArchitecture, serializeVersionDetail } from '@/lib/version-artifacts'
+import { withApiRequestLogging } from '@/lib/api-logger'
 
 function getRequestedArchitecture(source: URLSearchParams | Record<string, unknown>) {
   if (source instanceof URLSearchParams) {
@@ -95,121 +96,127 @@ function buildVersionPayload(serialized: ReturnType<typeof serializeVersionDetai
 
 // POST /api/v1/check - Check for updates (supports both API key and Bearer token)
 export async function POST(req: NextRequest) {
-  try {
-    const rateError = await checkRate(req)
-    if (rateError) {
-      return rateError
-    }
+  return withApiRequestLogging(req, '/api/v1/check', async ({ setProjectId }) => {
+    try {
+      const rateError = await checkRate(req)
+      if (rateError) {
+        return rateError
+      }
 
-    const body = await req.json().catch(() => ({})) as Record<string, unknown>
-    const projectId = typeof body.projectId === 'string' ? body.projectId : null
-    const currentVersion = typeof body.currentVersion === 'string' ? body.currentVersion : null
-    const requestedArchitecture = getRequestedArchitecture(body)
+      const body = await req.json().catch(() => ({})) as Record<string, unknown>
+      const projectId = typeof body.projectId === 'string' ? body.projectId : null
+      const currentVersion = typeof body.currentVersion === 'string' ? body.currentVersion : null
+      const requestedArchitecture = getRequestedArchitecture(body)
 
-    const projectResult = await resolveProjectByRequest(req, projectId)
-    if (projectResult.error) {
-      return projectResult.error
-    }
+      const projectResult = await resolveProjectByRequest(req, projectId)
+      if (projectResult.error) {
+        return projectResult.error
+      }
+      setProjectId(projectResult.project!.id)
 
-    const lookup = await getLatestAvailableVersionForArchitecture(
-      prisma,
-      projectResult.project!.id,
-      requestedArchitecture,
-      currentVersion,
-    )
+      const lookup = await getLatestAvailableVersionForArchitecture(
+        prisma,
+        projectResult.project!.id,
+        requestedArchitecture,
+        currentVersion,
+      )
 
-    if (!lookup.latestLogicalVersion) {
+      if (!lookup.latestLogicalVersion) {
+        return NextResponse.json({
+          success: true,
+          hasUpdate: false,
+          message: 'No versions available',
+        })
+      }
+
+      if (!lookup.latestAvailable) {
+        return NextResponse.json({
+          success: true,
+          hasUpdate: false,
+          code: 'ARCH_NOT_PUBLISHED',
+          message: `架构 ${lookup.targetArchitectureKey} 尚未发布任何可用版本`,
+        })
+      }
+
+      if (currentVersion && !lookup.nextAvailable) {
+        return NextResponse.json({
+          success: true,
+          hasUpdate: false,
+          data: null,
+        })
+      }
+
+      const selected = lookup.nextAvailable?.version || lookup.latestAvailable.version
+      const serialized = serializeVersionDetail(selected, lookup.architectures, lookup.targetArchitectureKey)
+
       return NextResponse.json({
         success: true,
-        hasUpdate: false,
-        message: 'No versions available',
+        hasUpdate: true,
+        data: buildVersionPayload(serialized, lookup.targetArchitectureKey),
       })
+    } catch (error) {
+      console.error('Failed to check version:', error)
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
-
-    if (!lookup.latestAvailable) {
-      return NextResponse.json({
-        success: true,
-        hasUpdate: false,
-        code: 'ARCH_NOT_PUBLISHED',
-        message: `架构 ${lookup.targetArchitectureKey} 尚未发布任何可用版本`,
-      })
-    }
-
-    if (currentVersion && !lookup.nextAvailable) {
-      return NextResponse.json({
-        success: true,
-        hasUpdate: false,
-        data: null,
-      })
-    }
-
-    const selected = lookup.nextAvailable?.version || lookup.latestAvailable.version
-    const serialized = serializeVersionDetail(selected, lookup.architectures, lookup.targetArchitectureKey)
-
-    return NextResponse.json({
-      success: true,
-      hasUpdate: true,
-      data: buildVersionPayload(serialized, lookup.targetArchitectureKey),
-    })
-  } catch (error) {
-    console.error('Failed to check version:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+  })
 }
 
 // GET /api/v1/check - Get latest version info (supports both API key and Bearer token)
 export async function GET(req: NextRequest) {
-  try {
-    const rateError = await checkRate(req)
-    if (rateError) {
-      return rateError
-    }
+  return withApiRequestLogging(req, '/api/v1/check', async ({ setProjectId }) => {
+    try {
+      const rateError = await checkRate(req)
+      if (rateError) {
+        return rateError
+      }
 
-    const { searchParams } = new URL(req.url)
-    const projectId = searchParams.get('projectId')
-    const requestedArchitecture = getRequestedArchitecture(searchParams)
+      const { searchParams } = new URL(req.url)
+      const projectId = searchParams.get('projectId')
+      const requestedArchitecture = getRequestedArchitecture(searchParams)
 
-    const projectResult = await resolveProjectByRequest(req, projectId)
-    if (projectResult.error) {
-      return projectResult.error
-    }
+      const projectResult = await resolveProjectByRequest(req, projectId)
+      if (projectResult.error) {
+        return projectResult.error
+      }
+      setProjectId(projectResult.project!.id)
 
-    const lookup = await getLatestAvailableVersionForArchitecture(
-      prisma,
-      projectResult.project!.id,
-      requestedArchitecture,
-      null,
-    )
+      const lookup = await getLatestAvailableVersionForArchitecture(
+        prisma,
+        projectResult.project!.id,
+        requestedArchitecture,
+        null,
+      )
 
-    if (!lookup.latestLogicalVersion) {
+      if (!lookup.latestLogicalVersion) {
+        return NextResponse.json({
+          success: true,
+          data: null,
+          message: 'No versions available',
+        })
+      }
+
+      if (!lookup.latestAvailable) {
+        return NextResponse.json({
+          success: true,
+          data: null,
+          code: 'ARCH_NOT_PUBLISHED',
+          message: `架构 ${lookup.targetArchitectureKey} 尚未发布任何可用版本`,
+        })
+      }
+
+      const serialized = serializeVersionDetail(
+        lookup.latestAvailable.version,
+        lookup.architectures,
+        lookup.targetArchitectureKey,
+      )
+
       return NextResponse.json({
         success: true,
-        data: null,
-        message: 'No versions available',
+        data: buildVersionPayload(serialized, lookup.targetArchitectureKey),
       })
+    } catch (error) {
+      console.error('Failed to get latest version:', error)
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
-
-    if (!lookup.latestAvailable) {
-      return NextResponse.json({
-        success: true,
-        data: null,
-        code: 'ARCH_NOT_PUBLISHED',
-        message: `架构 ${lookup.targetArchitectureKey} 尚未发布任何可用版本`,
-      })
-    }
-
-    const serialized = serializeVersionDetail(
-      lookup.latestAvailable.version,
-      lookup.architectures,
-      lookup.targetArchitectureKey,
-    )
-
-    return NextResponse.json({
-      success: true,
-      data: buildVersionPayload(serialized, lookup.targetArchitectureKey),
-    })
-  } catch (error) {
-    console.error('Failed to get latest version:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+  })
 }

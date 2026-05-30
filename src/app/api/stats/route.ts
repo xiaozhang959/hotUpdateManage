@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+function formatChartDate(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export async function GET(request: Request) {
   try {
     const session = await auth()
@@ -98,7 +105,7 @@ export async function GET(request: Request) {
           ])
           
           apiRequestsData.push({
-            date: date.toISOString().split('T')[0],
+            date: formatChartDate(date),
             requests: totalRequests,
             successRate: totalRequests > 0 ? (successRequests / totalRequests * 100) : 100
           })
@@ -120,7 +127,7 @@ export async function GET(request: Request) {
           })
           
           userGrowthData.push({
-            date: date.toISOString().split('T')[0],
+            date: formatChartDate(date),
             newUsers: dailyUsers,
             totalUsers: await prisma.user.count({
               where: {
@@ -185,7 +192,7 @@ export async function GET(request: Request) {
           ])
           
           emailStatsData.push({
-            date: date.toISOString().split('T')[0],
+            date: formatChartDate(date),
             sent,
             failed
           })
