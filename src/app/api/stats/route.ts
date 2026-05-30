@@ -107,7 +107,7 @@ export async function GET(request: Request) {
           apiRequestsData.push({
             date: formatChartDate(date),
             requests: totalRequests,
-            successRate: totalRequests > 0 ? (successRequests / totalRequests * 100) : 100
+            successRate: totalRequests > 0 ? (successRequests / totalRequests * 100) : null
           })
         }
         

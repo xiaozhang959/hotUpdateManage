@@ -7,7 +7,7 @@ import { Activity } from 'lucide-react'
 interface ApiRequestData {
   date: string
   requests: number
-  successRate: number
+  successRate: number | null
 }
 
 interface ApiRequestsChartProps {
@@ -16,6 +16,8 @@ interface ApiRequestsChartProps {
 }
 
 export function ApiRequestsChart({ data, isLoading }: ApiRequestsChartProps) {
+  const hasRequests = data.some((item) => item.requests > 0)
+
   if (isLoading) {
     return (
       <Card>
@@ -39,6 +41,14 @@ export function ApiRequestsChart({ data, isLoading }: ApiRequestsChartProps) {
         <Activity className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
+        {!hasRequests ? (
+          <div className="h-[200px] flex flex-col items-center justify-center text-center">
+            <div className="text-sm text-muted-foreground">暂无真实 API 请求数据</div>
+            <div className="text-xs text-muted-foreground mt-2">
+              调用 /api/v1/check、/api/versions/latest 或下载接口后会开始统计
+            </div>
+          </div>
+        ) : (
         <div className="h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data}>
@@ -57,10 +67,16 @@ export function ApiRequestsChart({ data, isLoading }: ApiRequestsChartProps) {
                   const date = new Date(value)
                   return `${date.getMonth() + 1}月${date.getDate()}日`
                 }}
-                formatter={(value: number, name: string) => [
-                  name === 'requests' ? `${value} 次请求` : `${value.toFixed(1)}% 成功率`,
-                  name === 'requests' ? '请求次数' : '成功率'
-                ]}
+                formatter={(value, name) => {
+                  if (name === 'requests') {
+                    return [`${value ?? 0} 次请求`, '请求次数']
+                  }
+                  const successRate = typeof value === 'number' ? value : Number(value)
+                  return [
+                    Number.isFinite(successRate) ? `${successRate.toFixed(1)}% 成功率` : '无请求',
+                    '成功率',
+                  ]
+                }}
               />
               <Line 
                 type="monotone" 
@@ -72,6 +88,7 @@ export function ApiRequestsChart({ data, isLoading }: ApiRequestsChartProps) {
               <Line 
                 type="monotone" 
                 dataKey="successRate" 
+                connectNulls={false}
                 stroke="#10b981" 
                 strokeWidth={2}
                 dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
@@ -79,6 +96,7 @@ export function ApiRequestsChart({ data, isLoading }: ApiRequestsChartProps) {
             </LineChart>
           </ResponsiveContainer>
         </div>
+        )}
         <div className="flex items-center justify-between text-sm text-muted-foreground mt-2">
           <div className="flex items-center">
             <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>

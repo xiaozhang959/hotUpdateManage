@@ -21,7 +21,7 @@ interface StatsData {
     versions: number
   }
   charts?: {
-    apiRequests: Array<{ date: string; requests: number; successRate: number }>
+    apiRequests: Array<{ date: string; requests: number; successRate: number | null }>
     userGrowth: Array<{ date: string; newUsers: number; totalUsers: number }>
     projects: Array<{ name: string; versions: number; color: string }>
     emailStats: Array<{ date: string; sent: number; failed: number }>
