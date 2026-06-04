@@ -166,7 +166,7 @@ model EmailLog {
 model StorageConfig {
   id         String   @id @default(cuid())
   name       String
-  provider   String // 'LOCAL' | 'S3' | 'OSS' | 'WEBDAV'
+  provider   String // 'LOCAL' | 'S3' | 'OSS' | 'WEBDAV' | 'LANZOU'
   userId     String? // null 表示全局配置
   user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   isDefault  Boolean  @default(false) // 每个作用域（用户/全局）建议仅一个默认

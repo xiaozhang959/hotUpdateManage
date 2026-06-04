@@ -5,7 +5,31 @@ import { createS3Provider } from './s3'
 import type { S3Config } from './s3'
 import { createOSSProvider } from './oss'
 import type { OSSConfig } from './oss'
+import { createLanzouProvider } from './lanzou'
+import type { LanzouConfig } from './lanzou'
 import type { StorageProvider, ProviderConfig, LocalConfig, WebDAVConfig } from './types'
+
+export type StorageProviderFactory = (config: ProviderConfig) => StorageProvider
+
+const storageProviderFactories = new Map<string, StorageProviderFactory>()
+let builtInStorageProvidersRegistered = false
+
+export function registerStorageProvider(name: string, factory: StorageProviderFactory) {
+  const normalized = name.trim().toUpperCase()
+  if (!normalized) throw new Error('storage provider name is required')
+  storageProviderFactories.set(normalized, factory)
+}
+
+export function listRegisteredStorageProviders() {
+  ensureBuiltInStorageProvidersRegistered()
+  return Array.from(storageProviderFactories.keys())
+}
+
+export function createStorageProvider(name: string, config: ProviderConfig = {}): StorageProvider | null {
+  ensureBuiltInStorageProvidersRegistered()
+  const factory = storageProviderFactories.get(name.trim().toUpperCase())
+  return factory ? factory(config) : null
+}
 
 export interface ActiveStorageSelection {
   scope: 'user' | 'global' | 'fallback'
@@ -82,18 +106,7 @@ export async function getActiveStorageProvider(userId?: string | null): Promise<
 
 function buildProvider(name: string, json: string): StorageProvider {
   const cfg = parseConfig(json)
-  switch (name) {
-    case 'LOCAL':
-      return createLocalProvider(cfg as LocalConfig)
-    case 'WEBDAV':
-      return createWebDAVProvider(cfg as WebDAVConfig)
-    case 'S3':
-      return createS3Provider(cfg as Partial<S3Config>)
-    case 'OSS':
-      return createOSSProvider(cfg as Partial<OSSConfig>)
-    default:
-      return createLocalProvider()
-  }
+  return createStorageProvider(name, cfg) || createLocalProvider()
 }
 
 function parseConfig(json: string): ProviderConfig {
@@ -125,4 +138,15 @@ export async function getProviderByConfigId(id: string, ownerUserId?: string | n
   } catch {
     return null
   }
+}
+
+function ensureBuiltInStorageProvidersRegistered() {
+  if (builtInStorageProvidersRegistered) return
+  builtInStorageProvidersRegistered = true
+
+  registerStorageProvider('LOCAL', (cfg) => createLocalProvider(cfg as LocalConfig))
+  registerStorageProvider('WEBDAV', (cfg) => createWebDAVProvider(cfg as WebDAVConfig))
+  registerStorageProvider('S3', (cfg) => createS3Provider(cfg as Partial<S3Config>))
+  registerStorageProvider('OSS', (cfg) => createOSSProvider(cfg as Partial<OSSConfig>))
+  registerStorageProvider('LANZOU', (cfg) => createLanzouProvider(cfg as Partial<LanzouConfig>))
 }

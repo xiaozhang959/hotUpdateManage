@@ -108,6 +108,25 @@ export async function buildVersionDownloadResponse(target: DownloadArtifactTarge
     return new Response(upstream.body, { status: 200, headers })
   }
 
+  if (provider === 'LANZOU') {
+    if (!target.storageConfigId) {
+      return new Response(JSON.stringify({ error: '存储配置缺失' }), { status: 400 })
+    }
+    const cfg = await prisma.storageConfig.findUnique({ where: { id: target.storageConfigId } })
+    if (!cfg) {
+      return new Response(JSON.stringify({ error: '存储配置不存在' }), { status: 404 })
+    }
+    const conf = cfg.configJson ? JSON.parse(cfg.configJson) : {}
+    try {
+      const { resolveLanzouDownloadUrl } = await import('@/lib/lanzou/client')
+      const directUrl = await resolveLanzouDownloadUrl(target.downloadUrl, conf)
+      return Response.redirect(directUrl, 302)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '蓝奏云直链解析失败'
+      return new Response(JSON.stringify({ error: message }), { status: 502 })
+    }
+  }
+
   if (provider === 'LOCAL') {
     let baseDir = 'uploads'
     let publicPrefix = '/uploads'
