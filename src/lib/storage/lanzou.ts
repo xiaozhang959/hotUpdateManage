@@ -8,6 +8,7 @@ export type { LanzouConfig }
 export function createLanzouProvider(raw: Partial<LanzouConfig>): StorageProvider {
   const cfg: LanzouConfig = {
     baseUrl: raw.baseUrl,
+    shareBaseUrl: raw.shareBaseUrl,
     uploadPath: raw.uploadPath,
     cookie: raw.cookie,
     folderId: raw.folderId ?? -1,
