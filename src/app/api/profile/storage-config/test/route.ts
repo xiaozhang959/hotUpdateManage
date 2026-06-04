@@ -13,9 +13,6 @@ export async function POST(req: NextRequest) {
     if (!provider) return NextResponse.json({ error: 'provider 必填' }, { status: 400 })
     const buf = Buffer.from('test-connectivity')
     const isLanzou = provider === 'LANZOU'
-    if (isLanzou && !String(config?.resolverEndpoint || '').trim()) {
-      return NextResponse.json({ success: false, error: 'LANZOU 配置缺少 resolverEndpoint，无法验证下载解析' }, { status: 200 })
-    }
     const fileName = `connectivity_${Date.now()}_${Math.random().toString(36).slice(2)}.${isLanzou ? 'zip' : 'txt'}`
     const projectId = '__test__'
 

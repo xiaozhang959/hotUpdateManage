@@ -40,6 +40,13 @@ interface LanzouResponse<Info = unknown, Text = unknown> {
   text: Text
 }
 
+interface LanzouProcessResponse {
+  zt?: number
+  inf?: string
+  dom?: string
+  url?: string
+}
+
 interface MultipartFile {
   fieldName: string
   fileName: string
@@ -170,21 +177,11 @@ export class LanzouClient {
   }
 
   private async requestJson<T>(url: string, init: RequestInit & { duplex?: 'half' }): Promise<T> {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), this.config.timeoutMs)
+    const text = await fetchTextWithTimeout(url, this.config, init)
     try {
-      const res = await fetch(url, { ...init, signal: controller.signal })
-      const text = await res.text()
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`)
-      }
-      try {
-        return JSON.parse(text) as T
-      } catch {
-        throw new Error(`invalid JSON response: ${text.slice(0, 200)}`)
-      }
-    } finally {
-      clearTimeout(timer)
+      return JSON.parse(text) as T
+    } catch {
+      throw new Error(`invalid JSON response: ${text.slice(0, 200)}`)
     }
   }
 
@@ -197,35 +194,234 @@ export class LanzouClient {
 
 export async function resolveLanzouDownloadUrl(shareUrl: string, config: LanzouConfig): Promise<string> {
   const endpoint = config.resolverEndpoint?.trim()
-  if (!endpoint) {
-    throw new Error('LANZOU resolverEndpoint is required')
+  if (endpoint) {
+    return resolveLanzouDownloadUrlByEndpoint(shareUrl, config, endpoint)
   }
+  return resolveLanzouDownloadUrlEmbedded(shareUrl, config)
+}
+
+async function resolveLanzouDownloadUrlByEndpoint(shareUrl: string, config: LanzouConfig, endpoint: string): Promise<string> {
   const url = new URL(endpoint)
   url.searchParams.set('url', shareUrl)
   const password = config.sharePassword?.trim()
   if (password) url.searchParams.set('pwd', password)
 
+  const text = await fetchTextWithTimeout(url.toString(), config, {
+    headers: {
+      'User-Agent': config.userAgent?.trim() || DEFAULT_USER_AGENT,
+    },
+  })
+  const data = JSON.parse(text) as { code?: number; msg?: string; downUrl?: string }
+  if (data.code !== 200 || !data.downUrl) {
+    throw new Error(data.msg || 'LANZOU resolver did not return downUrl')
+  }
+  return data.downUrl
+}
+
+async function resolveLanzouDownloadUrlEmbedded(shareUrl: string, config: LanzouConfig): Promise<string> {
+  const parsed = new URL(shareUrl)
+  const shareOrigin = parsed.origin
+  const sharePageUrl = `${shareOrigin}${parsed.pathname}${parsed.search}`
+  const password = config.sharePassword?.trim() || ''
+  let pageHtml = await fetchLanzouHtml(sharePageUrl, config)
+
+  if (pageHtml.includes('文件取消分享') || pageHtml.includes('取消分享')) {
+    throw new Error('蓝奏云文件已取消分享')
+  }
+  if (pageHtml.includes('文件不存在')) {
+    throw new Error('蓝奏云文件不存在')
+  }
+
+  let processResponse: LanzouProcessResponse
+  let directReferer = sharePageUrl
+
+  if (requiresSharePassword(pageHtml)) {
+    if (!password) {
+      throw new Error('蓝奏云分享链接需要提取码，请在 LANZOU 配置中设置 sharePassword')
+    }
+
+    const functionBody = extractFunctionBody(pageHtml, 'down_p') || pageHtml
+    const fileId = extractAjaxFileId(functionBody)
+    const signCandidates = extractAll(functionBody, /'sign'\s*:\s*'([^']*)'/g)
+    const form = {
+      action: 'downprocess',
+      sign: signCandidates[1] || signCandidates[0] || extractQuotedValue(functionBody, 'sign'),
+      p: password,
+      kd: '1',
+    }
+    processResponse = await postLanzouProcess(`${shareOrigin}/ajaxm.php?file=${fileId}`, form, sharePageUrl, config)
+  } else {
+    const iframePath = matchFirst(pageHtml, /<iframe[^>]*src=["']([^"']+)["']/i)
+    if (!iframePath) {
+      throw new Error('蓝奏云解析失败：未找到下载页面')
+    }
+    const iframeUrl = new URL(iframePath, shareOrigin).toString()
+    directReferer = iframeUrl
+    pageHtml = await fetchLanzouHtml(iframeUrl, config)
+
+    const fileId = extractAjaxFileId(pageHtml)
+    const ajaxData = matchFirst(pageHtml, /ajaxdata\s*=\s*'([^']*)'/)
+    const form = parseLanzouScriptParams(pageHtml)
+    if (!form.action) form.action = 'downprocess'
+    if (!form.websignkey) form.websignkey = ajaxData || ''
+    if (!form.signs) form.signs = ajaxData || form.websignkey || ''
+    if (!form.websign) form.websign = ''
+    if (!form.kd) form.kd = '1'
+    if (!form.ves) form.ves = '1'
+
+    processResponse = await postLanzouProcess(`${shareOrigin}/ajaxm.php?file=${fileId}`, form, iframeUrl, config)
+  }
+
+  if (processResponse.zt !== 1 || !processResponse.dom || !processResponse.url) {
+    throw new Error(processResponse.inf || '蓝奏云解析失败：未返回下载地址')
+  }
+
+  const baseUrl = `${processResponse.dom.replace(/\/$/, '')}/file`
+  const intermediateUrl = `${baseUrl}/${processResponse.url}`
+  const redirectedUrl = await resolveLanzouRedirect(intermediateUrl, directReferer || baseUrl, config)
+  return stripLanzouPid(redirectedUrl || intermediateUrl)
+}
+
+async function postLanzouProcess(url: string, form: Record<string, string>, referer: string, config: LanzouConfig): Promise<LanzouProcessResponse> {
+  const text = await fetchTextWithTimeout(url, config, {
+    method: 'POST',
+    headers: {
+      'User-Agent': config.userAgent?.trim() || DEFAULT_USER_AGENT,
+      Referer: referer,
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+    },
+    body: new URLSearchParams(form).toString(),
+  })
+  return JSON.parse(text) as LanzouProcessResponse
+}
+
+async function resolveLanzouRedirect(url: string, referer: string, config: LanzouConfig) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), clampTimeout(config.timeoutMs))
   try {
     const res = await fetch(url, {
+      redirect: 'manual',
       headers: {
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+        Cookie: 'down_ip=1',
+        Referer: referer,
         'User-Agent': config.userAgent?.trim() || DEFAULT_USER_AGENT,
       },
       signal: controller.signal,
     })
-    const text = await res.text()
-    if (!res.ok) {
-      throw new Error(`LANZOU resolver HTTP ${res.status}: ${text.slice(0, 200)}`)
-    }
-    const data = JSON.parse(text) as { code?: number; msg?: string; downUrl?: string }
-    if (data.code !== 200 || !data.downUrl) {
-      throw new Error(data.msg || 'LANZOU resolver did not return downUrl')
-    }
-    return data.downUrl
+    const location = res.headers.get('location')
+    return location ? new URL(location, url).toString() : url
   } finally {
     clearTimeout(timer)
   }
+}
+
+async function fetchLanzouHtml(url: string, config: LanzouConfig) {
+  let acwCookie = ''
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const html = await fetchTextWithTimeout(url, config, {
+      headers: {
+        ...(acwCookie ? { Cookie: `acw_sc__v2=${acwCookie}` } : {}),
+        'User-Agent': config.userAgent?.trim() || DEFAULT_USER_AGENT,
+      },
+    })
+    const nextCookie = extractAcwScV2Cookie(html)
+    if (nextCookie) {
+      acwCookie = nextCookie
+      continue
+    }
+    return html
+  }
+  throw new Error('蓝奏云触发 acw_sc__v2 验证，内置解析未通过')
+}
+
+async function fetchTextWithTimeout(url: string, config: LanzouConfig, init: RequestInit & { duplex?: 'half' } = {}) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), clampTimeout(config.timeoutMs))
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal })
+    const text = await res.text()
+    if (!res.ok) {
+      throw new Error(`LANZOU HTTP ${res.status}: ${text.slice(0, 200)}`)
+    }
+    return text
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function requiresSharePassword(html: string) {
+  return html.includes('function down_p()') || html.includes('pwdload') || html.includes('passwddiv')
+}
+
+function parseLanzouScriptParams(html: string) {
+  const params: Record<string, string> = {}
+  for (const match of html.matchAll(/['"]([a-zA-Z0-9_]+)['"]\s*:\s*['"]([^'"]*)['"]/g)) {
+    params[match[1]] = match[2]
+  }
+  return params
+}
+
+function extractFunctionBody(html: string, functionName: string) {
+  const start = html.indexOf(`function ${functionName}()`)
+  if (start < 0) return null
+  const braceStart = html.indexOf('{', start)
+  if (braceStart < 0) return null
+  let depth = 0
+  for (let index = braceStart; index < html.length; index += 1) {
+    const char = html[index]
+    if (char === '{') depth += 1
+    if (char === '}') depth -= 1
+    if (depth === 0) return html.slice(braceStart + 1, index)
+  }
+  return null
+}
+
+function extractAjaxFileId(html: string) {
+  const id = matchFirst(html, /ajaxm\.php\?file=(\d+)/)
+  if (!id) throw new Error('蓝奏云解析失败：未找到文件 ID')
+  return id
+}
+
+function extractQuotedValue(html: string, key: string) {
+  return matchFirst(html, new RegExp(`['"]${key}['"]\\s*:\\s*['"]([^'"]*)['"]`)) || ''
+}
+
+function extractAll(value: string, pattern: RegExp) {
+  return Array.from(value.matchAll(pattern)).map((item) => item[1]).filter(Boolean)
+}
+
+function matchFirst(value: string, pattern: RegExp) {
+  return value.match(pattern)?.[1] || ''
+}
+
+function stripLanzouPid(url: string) {
+  return url.replace(/pid=.*?&/, '')
+}
+
+function extractAcwScV2Cookie(html: string) {
+  if (!html.includes('acw_sc__v2')) return null
+  const arg1 = matchFirst(html, /arg1\s*=\s*['"]([0-9a-fA-F]{40})['"]/)
+  return arg1 ? acwScV2Simple(arg1) : null
+}
+
+function acwScV2Simple(arg1: string) {
+  const posList = [15, 35, 29, 24, 33, 16, 1, 38, 10, 9, 19, 31, 40, 27, 22, 23, 25, 13, 6, 11, 39, 18, 20, 8, 14, 21, 32, 26, 2, 30, 7, 4, 17, 5, 3, 28, 34, 37, 12, 36]
+  const mask = '3000176000856006061501533003690027800375'
+  const output = Array(40).fill('')
+  for (let index = 0; index < arg1.length; index += 1) {
+    const target = posList.findIndex((position) => position === index + 1)
+    if (target >= 0) output[target] = arg1[index]
+  }
+  const arg2 = output.join('')
+  let result = ''
+  for (let index = 0; index < Math.min(arg2.length, mask.length); index += 2) {
+    const left = parseInt(arg2.slice(index, index + 2), 16)
+    const right = parseInt(mask.slice(index, index + 2), 16)
+    result += (left ^ right).toString(16).padStart(2, '0')
+  }
+  return result
 }
 
 function normalizeBaseUrl(value?: string) {
