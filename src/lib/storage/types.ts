@@ -1,6 +1,6 @@
 import type { Readable } from 'node:stream'
 
-export type StorageProviderName = 'LOCAL' | 'S3' | 'OSS' | 'WEBDAV'
+export type StorageProviderName = 'LOCAL' | 'S3' | 'OSS' | 'WEBDAV' | 'LANZOU'
 
 export interface PutParams {
   projectId: string

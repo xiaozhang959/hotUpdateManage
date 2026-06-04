@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Plus, RefreshCw, Save, Trash2 } from 'lucide-react'
 import { formatDateTime } from '@/lib/timezone'
 
-type Provider = 'LOCAL'|'WEBDAV'|'S3'|'OSS'
+type Provider = 'LOCAL'|'WEBDAV'|'S3'|'OSS'|'LANZOU'
 
 interface Item {
   id: string
@@ -139,6 +139,38 @@ export default function AdminStoragePage() {
           </div>
         </div>
       )
+      case 'LANZOU': return (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>cookie<InfoHint text="登录 https://pc.woozooo.com/mydisk.php 后复制 Cookie。Cookie 属于敏感凭据，请使用专用账号并定期更新。" /></Label>
+            <Input type="password" value={form.config?.cookie||''} onChange={e=>setForm({...form, config:{...form.config, cookie:e.target.value}})} placeholder="ylogin=...; phpdisk_info=..."/>
+          </div>
+          <div>
+            <Label>folderId<InfoHint text="蓝奏云目标目录 ID。根目录填 -1。" /></Label>
+            <Input value={form.config?.folderId||''} onChange={e=>setForm({...form, config:{...form.config, folderId:e.target.value}})} placeholder="-1"/>
+          </div>
+          <div>
+            <Label>baseUrl<InfoHint text="蓝奏云文件操作基础地址，默认 https://pc.woozooo.com。若域名不可用可切换同类域名。" /></Label>
+            <Input value={form.config?.baseUrl||''} onChange={e=>setForm({...form, config:{...form.config, baseUrl:e.target.value}})} placeholder="https://pc.woozooo.com"/>
+          </div>
+          <div>
+            <Label>uploadPath<InfoHint text="上传入口，默认 html5up.php；部分旧实现可尝试 fileup.php。" /></Label>
+            <Input value={form.config?.uploadPath||''} onChange={e=>setForm({...form, config:{...form.config, uploadPath:e.target.value}})} placeholder="html5up.php"/>
+          </div>
+          <div>
+            <Label>resolverEndpoint<InfoHint text="自建 LanzouAPI 解析服务地址。下载时用它把分享链接解析成最终直链。" /></Label>
+            <Input value={form.config?.resolverEndpoint||''} onChange={e=>setForm({...form, config:{...form.config, resolverEndpoint:e.target.value}})} placeholder="https://example.com/lanzou/"/>
+          </div>
+          <div>
+            <Label>sharePassword<InfoHint text="可选。填写后上传完成会给文件设置提取码，下载解析也会使用同一提取码；蓝奏云文件提取码长度 2-6 位。" /></Label>
+            <Input value={form.config?.sharePassword||''} onChange={e=>setForm({...form, config:{...form.config, sharePassword:e.target.value}})} placeholder="可选，2-6位"/>
+          </div>
+          <div>
+            <Label>timeoutMs<InfoHint text="蓝奏云上传/删除/解析请求超时，默认 30000。" /></Label>
+            <Input type="number" value={form.config?.timeoutMs||''} onChange={e=>setForm({...form, config:{...form.config, timeoutMs:Number(e.target.value)||undefined}})} placeholder="30000"/>
+          </div>
+        </div>
+      )
     }
   }
 
@@ -253,12 +285,13 @@ export default function AdminStoragePage() {
                 <Input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
               </div>
               <div>
-                <Label>Provider<InfoHint text="存储类型：LOCAL/WEBDAV/S3/OSS。选择后按下方字段填写对应配置。" /></Label>
+                <Label>Provider<InfoHint text="存储类型：LOCAL/WEBDAV/S3/OSS/LANZOU。选择后按下方字段填写对应配置。" /></Label>
                 <select className="border rounded h-10 px-2 w-full" value={form.provider} onChange={e=>setForm({...form, provider:e.target.value as Provider})}>
                   <option value="LOCAL">LOCAL</option>
                   <option value="WEBDAV">WEBDAV</option>
                   <option value="S3">S3</option>
                   <option value="OSS">OSS</option>
+                  <option value="LANZOU">LANZOU</option>
                 </select>
               </div>
             </div>
