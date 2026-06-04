@@ -169,8 +169,8 @@ export default function ProfileStoragePage() {
               <Input value={form.config?.uploadPath||''} onChange={e=>setForm({...form, config:{...form.config, uploadPath:e.target.value}})} placeholder="html5up.php"/>
             </div>
             <div>
-              <Label>resolverEndpoint<InfoHint text="自建 LanzouAPI 解析服务地址。下载时用它把分享链接解析成最终直链。" /></Label>
-              <Input value={form.config?.resolverEndpoint||''} onChange={e=>setForm({...form, config:{...form.config, resolverEndpoint:e.target.value}})} placeholder="https://example.com/lanzou/"/>
+              <Label>resolverEndpoint<InfoHint text="可选。留空使用项目内置解析器；填写后优先调用外部 LanzouAPI 解析服务。" /></Label>
+              <Input value={form.config?.resolverEndpoint||''} onChange={e=>setForm({...form, config:{...form.config, resolverEndpoint:e.target.value}})} placeholder="可选，https://example.com/lanzou/"/>
             </div>
             <div>
               <Label>sharePassword<InfoHint text="可选。填写后上传完成会给文件设置提取码，下载解析也会使用同一提取码；蓝奏云文件提取码长度 2-6 位。" /></Label>
