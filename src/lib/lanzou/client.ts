@@ -4,6 +4,7 @@ import { stat } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 
 const DEFAULT_BASE_URL = 'https://pc.woozooo.com'
+const DEFAULT_SHARE_BASE_URL = 'https://www.lanzouf.com'
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 
@@ -11,6 +12,7 @@ export interface LanzouConfig {
   cookie?: string
   folderId?: string | number
   baseUrl?: string
+  shareBaseUrl?: string
   uploadPath?: string
   userAgent?: string
   sharePassword?: string
@@ -220,8 +222,8 @@ async function resolveLanzouDownloadUrlByEndpoint(shareUrl: string, config: Lanz
 
 async function resolveLanzouDownloadUrlEmbedded(shareUrl: string, config: LanzouConfig): Promise<string> {
   const parsed = new URL(shareUrl)
-  const shareOrigin = parsed.origin
-  const sharePageUrl = `${shareOrigin}${parsed.pathname}${parsed.search}`
+  const shareBaseUrl = normalizeShareBaseUrl(config.shareBaseUrl)
+  const sharePageUrl = `${shareBaseUrl}${parsed.pathname}${parsed.search}`
   const password = config.sharePassword?.trim() || ''
   let pageHtml = await fetchLanzouHtml(sharePageUrl, config)
 
@@ -249,13 +251,13 @@ async function resolveLanzouDownloadUrlEmbedded(shareUrl: string, config: Lanzou
       p: password,
       kd: '1',
     }
-    processResponse = await postLanzouProcess(`${shareOrigin}/ajaxm.php?file=${fileId}`, form, sharePageUrl, config)
+    processResponse = await postLanzouProcess(`${shareBaseUrl}/ajaxm.php?file=${fileId}`, form, sharePageUrl, config)
   } else {
     const iframePath = matchFirst(pageHtml, /<iframe[^>]*src=["']([^"']+)["']/i)
     if (!iframePath) {
       throw new Error('蓝奏云解析失败：未找到下载页面')
     }
-    const iframeUrl = new URL(iframePath, shareOrigin).toString()
+    const iframeUrl = new URL(iframePath, shareBaseUrl).toString()
     directReferer = iframeUrl
     pageHtml = await fetchLanzouHtml(iframeUrl, config)
 
@@ -269,7 +271,7 @@ async function resolveLanzouDownloadUrlEmbedded(shareUrl: string, config: Lanzou
     if (!form.kd) form.kd = '1'
     if (!form.ves) form.ves = '1'
 
-    processResponse = await postLanzouProcess(`${shareOrigin}/ajaxm.php?file=${fileId}`, form, iframeUrl, config)
+    processResponse = await postLanzouProcess(`${shareBaseUrl}/ajaxm.php?file=${fileId}`, form, iframeUrl, config)
   }
 
   if (processResponse.zt !== 1 || !processResponse.dom || !processResponse.url) {
@@ -426,6 +428,10 @@ function acwScV2Simple(arg1: string) {
 
 function normalizeBaseUrl(value?: string) {
   return (value?.trim() || DEFAULT_BASE_URL).replace(/\/$/, '')
+}
+
+function normalizeShareBaseUrl(value?: string) {
+  return (value?.trim() || DEFAULT_SHARE_BASE_URL).replace(/\/$/, '')
 }
 
 function buildUrl(baseUrl: string, pathOrUrl: string) {

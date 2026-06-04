@@ -158,6 +158,10 @@ export default function AdminStoragePage() {
             <Input value={form.config?.uploadPath||''} onChange={e=>setForm({...form, config:{...form.config, uploadPath:e.target.value}})} placeholder="html5up.php"/>
           </div>
           <div>
+            <Label>shareBaseUrl<InfoHint text="内置解析器使用的分享页基础域名，默认 https://www.lanzouf.com。分享链接来自 upload.lanzou* 域名时也会归一化到这里解析。" /></Label>
+            <Input value={form.config?.shareBaseUrl||''} onChange={e=>setForm({...form, config:{...form.config, shareBaseUrl:e.target.value}})} placeholder="https://www.lanzouf.com"/>
+          </div>
+          <div>
             <Label>resolverEndpoint<InfoHint text="可选。留空使用项目内置解析器；填写后优先调用外部 LanzouAPI 解析服务。" /></Label>
             <Input value={form.config?.resolverEndpoint||''} onChange={e=>setForm({...form, config:{...form.config, resolverEndpoint:e.target.value}})} placeholder="可选，https://example.com/lanzou/"/>
           </div>
