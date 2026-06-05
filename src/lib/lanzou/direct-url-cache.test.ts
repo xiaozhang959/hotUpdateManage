@@ -54,7 +54,7 @@ describe('lanzou direct url cache', () => {
     expect(resolve).toHaveBeenCalledTimes(1)
   })
 
-  it('uses ten-minute fallback ttl when direct url expiration is not parseable', async () => {
+  it('uses twenty-minute fallback ttl when direct url expiration is not parseable', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(1_700_000_000_000)
     const resolve = vi.fn()
@@ -68,7 +68,7 @@ describe('lanzou direct url cache', () => {
       resolve,
     })
 
-    vi.advanceTimersByTime(9 * 60_000)
+    vi.advanceTimersByTime(19 * 60_000)
     const cached = await getCachedLanzouDirectUrl({
       storageConfigId: 'cfg-1',
       shareUrl: 'https://www.lanzouf.com/iabc',
