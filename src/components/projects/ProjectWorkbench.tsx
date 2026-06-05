@@ -194,6 +194,10 @@ function supportsBrowserDirectUpload(storage?: StorageOptionItem | null) {
   return storage?.provider === 'S3' || storage?.provider === 'OSS'
 }
 
+function uploadTransferModeForStorage(storage: StorageOptionItem | null, preferred: UploadTransferMode): UploadTransferMode {
+  return supportsBrowserDirectUpload(storage) ? preferred : 'server'
+}
+
 function findStorageOption(options: StorageOptionItem[], storageConfigId?: string | null) {
   const value = storageValueOf(storageConfigId)
   return options.find((item) => storageValueOf(item.id) === value) || null
@@ -238,11 +242,13 @@ function buildVersionFormState(
   version?: ProjectVersionItem | null,
 ): VersionFormState {
   const defaultStorage = defaultStorageValue(availableStorages)
-  const uploadTransferMode = readUploadTransferModePreference()
+  const preferredUploadTransferMode = readUploadTransferModePreference()
   const primaryArtifacts = architectures.map((architecture) => {
     const artifact = version?.artifacts.find(
       (item) => item.fileRole === 'PRIMARY' && item.architectureKey === architecture.key,
     )
+    const storageConfigId = artifact?.storageConfigId || storageIdFromValue(defaultStorage)
+    const storage = findStorageOption(availableStorages, storageConfigId)
 
     return {
       architectureKey: architecture.key,
@@ -252,12 +258,12 @@ function buildVersionFormState(
       uploadMethod: 'url' as UploadMethod,
       downloadUrl: artifact?.rawDownloadUrl || artifact?.downloadUrl || '',
       file: null,
-      uploadTransferMode,
+      uploadTransferMode: uploadTransferModeForStorage(storage, preferredUploadTransferMode),
       md5: artifact?.md5 || '',
       size: artifact?.size ?? null,
       storageProvider: artifact?.storageProvider || null,
       objectKey: artifact?.objectKey || null,
-      storageConfigId: artifact?.storageConfigId || storageIdFromValue(defaultStorage),
+      storageConfigId,
     }
   })
 
@@ -588,15 +594,13 @@ function VersionDialog({
         throw new Error(`${label} 还没有选择文件`)
       }
       const selectedStorage = findStorageOption(availableStorages, draft.storageConfigId)
-      if (draft.uploadTransferMode === 'direct' && !supportsBrowserDirectUpload(selectedStorage)) {
-        throw new Error(`${label} 的目标存储暂不支持浏览器直传，请改用服务器中转上传`)
-      }
+      const uploadMode = uploadTransferModeForStorage(selectedStorage, draft.uploadTransferMode)
       setUploadingLabel(label)
       const uploaded = await uploadFileResumable({
         file: draft.file,
         projectId,
         storageConfigId: draft.storageConfigId,
-        uploadMode: draft.uploadTransferMode,
+        uploadMode,
       })
       return {
         downloadUrl: uploaded.url,
@@ -906,7 +910,14 @@ function VersionDialog({
                                 <select
                                   className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
                                   value={storageValueOf(artifact.storageConfigId)}
-                                  onChange={(event) => patchPrimary(artifact.architectureKey, { storageConfigId: storageIdFromValue(event.target.value) })}
+                                  onChange={(event) => {
+                                    const storageConfigId = storageIdFromValue(event.target.value)
+                                    const selectedStorage = findStorageOption(availableStorages, storageConfigId)
+                                    patchPrimary(artifact.architectureKey, {
+                                      storageConfigId,
+                                      uploadTransferMode: uploadTransferModeForStorage(selectedStorage, readUploadTransferModePreference()),
+                                    })
+                                  }}
                                   disabled={submitting}
                                 >
                                   {availableStorages.map((storage) => (
@@ -921,18 +932,22 @@ function VersionDialog({
                               </div>
                               <div className="space-y-2 md:col-span-2">
                                 <Label>传输模式</Label>
-                                <UploadTransferModeSelector
-                                  value={artifact.uploadTransferMode}
-                                  onChange={(uploadTransferMode) => {
-                                    writeUploadTransferModePreference(uploadTransferMode)
-                                    patchPrimary(artifact.architectureKey, { uploadTransferMode })
-                                  }}
-                                  disabled={submitting}
-                                />
-                                {artifact.uploadTransferMode === 'direct' && !supportsBrowserDirectUpload(findStorageOption(availableStorages, artifact.storageConfigId)) && (
-                                  <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
-                                    当前目标存储暂不支持浏览器直传，请选择“服务器中转”。S3/OSS 支持浏览器直传；WebDAV、兰奏和本地存储需要服务器中转。
-                                  </p>
+                                {supportsBrowserDirectUpload(findStorageOption(availableStorages, artifact.storageConfigId)) ? (
+                                  <UploadTransferModeSelector
+                                    value={artifact.uploadTransferMode}
+                                    onChange={(uploadTransferMode) => {
+                                      writeUploadTransferModePreference(uploadTransferMode)
+                                      patchPrimary(artifact.architectureKey, { uploadTransferMode })
+                                    }}
+                                    disabled={submitting}
+                                  />
+                                ) : (
+                                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                                    <div className="font-semibold">服务器中转</div>
+                                    <div className="mt-1 text-xs leading-5 text-slate-500">
+                                      当前目标存储仅支持服务器中转上传；S3/OSS 存储可选择浏览器直传。
+                                    </div>
+                                  </div>
                                 )}
                               </div>
                             </div>
