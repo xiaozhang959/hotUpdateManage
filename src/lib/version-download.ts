@@ -4,6 +4,7 @@ import { Readable } from 'stream'
 import { prisma } from '@/lib/prisma'
 import { getConfig } from '@/lib/system-config'
 import { normalizeProviderType } from '@/lib/version-artifacts'
+import { getCachedLanzouDirectUrl } from '@/lib/lanzou/direct-url-cache'
 
 export interface DownloadArtifactTarget {
   downloadUrl: string
@@ -119,7 +120,12 @@ export async function buildVersionDownloadResponse(target: DownloadArtifactTarge
     const conf = cfg.configJson ? JSON.parse(cfg.configJson) : {}
     try {
       const { resolveLanzouDownloadUrl } = await import('@/lib/lanzou/client')
-      const directUrl = await resolveLanzouDownloadUrl(target.downloadUrl, conf)
+      const directUrl = await getCachedLanzouDirectUrl({
+        storageConfigId: target.storageConfigId,
+        shareUrl: target.downloadUrl,
+        sharePassword: typeof conf.sharePassword === 'string' ? conf.sharePassword : undefined,
+        resolve: () => resolveLanzouDownloadUrl(target.downloadUrl, conf),
+      })
       return Response.redirect(directUrl, 302)
     } catch (error) {
       const message = error instanceof Error ? error.message : '蓝奏云直链解析失败'
