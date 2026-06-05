@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: '未授权' }, { status: 401 })
   const body = await req.json()
-  const { projectId, fileName, fileSize, contentType, storageConfigId, preferSingle } = body || {}
+  const { projectId, fileName, fileSize, contentType, storageConfigId, preferSingle, uploadMode } = body || {}
   if (!projectId || !fileName || !fileSize) return NextResponse.json({ error: '参数不完整' }, { status: 400 })
 
   // 校验最大体积
@@ -45,14 +45,16 @@ export async function POST(req: NextRequest) {
       fileSize,
       contentType,
       storageConfigId: storageConfigId || null,
-      preferSingle: !!preferSingle
+      preferSingle: !!preferSingle,
+      uploadMode: uploadMode === 'server' ? 'server' : 'direct',
     })
     return NextResponse.json({ success: true, data: meta })
   } catch (error) {
     const message = error instanceof Error ? error.message : '初始化上传会话失败'
+    const isBadRequest = message === 'invalid storageConfigId' || message.includes('暂不支持浏览器直传')
     return NextResponse.json(
       { error: message === 'invalid storageConfigId' ? '所选存储配置不存在或不可用于当前项目' : message },
-      { status: message === 'invalid storageConfigId' ? 400 : 500 }
+      { status: isBadRequest ? 400 : 500 }
     )
   }
 }

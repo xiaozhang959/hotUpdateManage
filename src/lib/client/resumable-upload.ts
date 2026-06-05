@@ -11,15 +11,18 @@ export type UploadResult = {
   uploadedAt: string
 }
 
+export type UploadTransferMode = 'direct' | 'server'
+
 type Options = {
   file: File
   projectId: string
   storageConfigId?: string | null
+  uploadMode?: UploadTransferMode
   onProgress?: (p: { uploadedBytes: number; totalBytes: number; uploadedParts: number; totalParts: number }) => void
   // 智能阈值（MB）：小于等于阈值走单请求上传；默认 60MB
   thresholdMB?: number
   onEvent?: (e:
-    | { type: 'started'; strategy: 'S3_MULTIPART' | 'SERVER_CHUNK' | 'SINGLE'; resumed: boolean; totalParts: number; partSize: number; totalBytes: number }
+    | { type: 'started'; strategy: 'S3_MULTIPART' | 'SERVER_CHUNK' | 'SINGLE' | 'OSS_SINGLE'; resumed: boolean; totalParts: number; partSize: number; totalBytes: number }
     | { type: 'resumed'; uploadedParts: number; uploadedBytes: number }
     | { type: 'part-complete'; partNumber: number; uploadedBytes: number; totalBytes: number }
     | { type: 'retry'; attempt: number; delayMs: number; target: 'part' | 'chunk' | 'presign' }
@@ -28,12 +31,25 @@ type Options = {
   retry?: { maxRetries?: number; baseDelayMs?: number; factor?: number; maxDelayMs?: number }
 }
 
-function fingerprint(file: File, projectId: string, storageConfigId?: string | null) {
-  return `${projectId}:${storageConfigId || 'local'}:${file.name}:${file.size}:${file.lastModified}`
+function normalizedUploadMode(uploadMode?: UploadTransferMode): UploadTransferMode {
+  return uploadMode === 'server' ? 'server' : 'direct'
 }
 
-async function createOrResumeSession(file: File, projectId: string, storageConfigId?: string | null) {
-  const fp = fingerprint(file, projectId, storageConfigId)
+function fingerprint(file: File, projectId: string, storageConfigId?: string | null, uploadMode?: UploadTransferMode) {
+  return `${normalizedUploadMode(uploadMode)}:${projectId}:${storageConfigId || 'local'}:${file.name}:${file.size}:${file.lastModified}`
+}
+
+async function readErrorMessage(response: Response, fallback: string) {
+  try {
+    const data = await response.json()
+    return data?.error || fallback
+  } catch {
+    return fallback
+  }
+}
+
+async function createOrResumeSession(file: File, projectId: string, storageConfigId?: string | null, uploadMode?: UploadTransferMode) {
+  const fp = fingerprint(file, projectId, storageConfigId, uploadMode)
   const ttlHours = parseInt(process.env.NEXT_PUBLIC_UPLOAD_RESUME_TTL_HOURS || '72', 10) || 72
   const TTL = ttlHours * 3600 * 1000
   const cached = localStorage.getItem('upload:'+fp)
@@ -54,9 +70,16 @@ async function createOrResumeSession(file: File, projectId: string, storageConfi
   const r = await fetch('/api/uploads/initiate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ projectId, fileName: file.name, fileSize: file.size, contentType: file.type, storageConfigId: storageConfigId || null })
+    body: JSON.stringify({
+      projectId,
+      fileName: file.name,
+      fileSize: file.size,
+      contentType: file.type,
+      storageConfigId: storageConfigId || null,
+      uploadMode: normalizedUploadMode(uploadMode),
+    })
   })
-  if (!r.ok) throw new Error((await r.json()).error || 'initiate failed')
+  if (!r.ok) throw new Error(await readErrorMessage(r, 'initiate failed'))
   const meta = (await r.json()).data
   try {
     const now = Date.now()
@@ -67,60 +90,100 @@ async function createOrResumeSession(file: File, projectId: string, storageConfi
   return { meta, uploaded: [] as number[], fp, resumed: false }
 }
 
-async function smallUpload(file: File, projectId: string, storageConfigId?: string | null): Promise<UploadResult> {
-  // 优先尝试：S3 单次 PUT 预签名（完全绕过服务器）
-  try {
+async function directSingleUpload(file: File, meta: any): Promise<UploadResult> {
+  if (meta.strategy === 'S3_SINGLE') {
+    const pre = await fetch(`/api/uploads/s3/presign-single?uploadId=${encodeURIComponent(meta.uploadId)}`)
+    if (!pre.ok) throw new Error(await readErrorMessage(pre, 'S3 直传预签名失败'))
+    const url = (await pre.json()).data.url
+    const put = await fetch(url, { method: 'PUT', body: file })
+    if (!put.ok) throw new Error('S3 直传上传失败')
+    const etag = put.headers.get('ETag') || put.headers.get('etag') || ''
+    const fin = await fetch('/api/uploads/s3/complete-single', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uploadId: meta.uploadId, etag }) })
+    if (!fin.ok) throw new Error(await readErrorMessage(fin, 'S3 直传完成失败'))
+    return (await fin.json()).data as UploadResult
+  }
+
+  if (meta.strategy === 'OSS_SINGLE') {
+    const pre = await fetch(`/api/uploads/oss/presign-single?uploadId=${encodeURIComponent(meta.uploadId)}`)
+    if (!pre.ok) throw new Error(await readErrorMessage(pre, 'OSS 直传预签名失败'))
+    const presigned = (await pre.json()).data
+    const put = await fetch(presigned.url, { method: 'PUT', body: file, headers: presigned.headers || {} })
+    if (!put.ok) throw new Error('OSS 直传上传失败')
+    const etag = put.headers.get('ETag') || put.headers.get('etag') || ''
+    const fin = await fetch('/api/uploads/oss/complete-single', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uploadId: meta.uploadId, etag }) })
+    if (!fin.ok) throw new Error(await readErrorMessage(fin, 'OSS 直传完成失败'))
+    return (await fin.json()).data as UploadResult
+  }
+
+  throw new Error('当前上传会话不是浏览器直传')
+}
+
+async function smallUpload(file: File, projectId: string, storageConfigId?: string | null, uploadMode?: UploadTransferMode): Promise<UploadResult> {
+  if (normalizedUploadMode(uploadMode) === 'direct') {
     const init = await fetch('/api/uploads/initiate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId, fileName: file.name, fileSize: file.size, contentType: file.type, storageConfigId: storageConfigId || null, preferSingle: true })
+      body: JSON.stringify({
+        projectId,
+        fileName: file.name,
+        fileSize: file.size,
+        contentType: file.type,
+        storageConfigId: storageConfigId || null,
+        preferSingle: true,
+        uploadMode: 'direct',
+      })
     })
-    if (init.ok) {
-      const metaResp = await init.json(); const meta = metaResp.data
-      if (meta.strategy === 'S3_SINGLE') {
-        const pre = await fetch(`/api/uploads/s3/presign-single?uploadId=${encodeURIComponent(meta.uploadId)}`)
-        if (!pre.ok) throw new Error('presign single failed')
-        const url = (await pre.json()).data.url
-        const put = await fetch(url, { method: 'PUT', body: file })
-        if (!put.ok) throw new Error('single put failed')
-        const etag = put.headers.get('ETag') || put.headers.get('etag') || ''
-        const fin = await fetch('/api/uploads/s3/complete-single', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uploadId: meta.uploadId, etag }) })
-        if (!fin.ok) throw new Error('complete single failed')
-        return (await fin.json()).data as UploadResult
-      }
-    }
-  } catch (e) {
-    console.warn('S3 单次预签名直传失败，回退到表单上传：', e)
+    if (!init.ok) throw new Error(await readErrorMessage(init, '初始化浏览器直传失败'))
+    const metaResp = await init.json()
+    return directSingleUpload(file, metaResp.data)
   }
-  // 回退：表单直传至服务端
+
+  // 服务器中转：表单直传至服务端
   const fd = new FormData()
   fd.append('file', file)
   fd.append('projectId', projectId)
   if (storageConfigId) fd.append('storageConfigId', storageConfigId)
   const resp = await fetch('/api/upload', { method: 'POST', body: fd })
-  if (!resp.ok) throw new Error('文件上传失败')
+  if (!resp.ok) throw new Error(await readErrorMessage(resp, '文件上传失败'))
   const j = await resp.json()
   return j.data as UploadResult
 }
 
 export async function uploadFileResumable(opts: Options): Promise<UploadResult> {
   const { file, projectId, storageConfigId, onProgress } = opts
+  const uploadMode = normalizedUploadMode(opts.uploadMode)
   const thresholdMB = typeof opts.thresholdMB === 'number' ? opts.thresholdMB : (parseInt(process.env.NEXT_PUBLIC_UPLOAD_CHUNK_THRESHOLD_MB || '60', 10) || 60)
   const thresholdBytes = thresholdMB * 1024 * 1024
 
-  // 小文件/单请求优先；若失败（如413）自动回退到分片
+  // 小文件/单请求优先；服务器中转失败时可回退到分片，浏览器直传失败时直接暴露错误
   if (file.size <= thresholdBytes) {
     try {
-      opts.onEvent?.({ type: 'started', strategy: 'SINGLE', resumed: false, totalParts: 1, partSize: file.size, totalBytes: file.size })
-      const res = await smallUpload(file, projectId, storageConfigId || null)
+      opts.onEvent?.({ type: 'started', strategy: uploadMode === 'direct' ? 'SINGLE' : 'SERVER_CHUNK', resumed: false, totalParts: 1, partSize: file.size, totalBytes: file.size })
+      const res = await smallUpload(file, projectId, storageConfigId || null, uploadMode)
       opts.onEvent?.({ type: 'complete' })
       return res
     } catch (e) {
+      if (uploadMode === 'direct') throw e
       // 回退到分片
-      console.warn('小文件直传失败，回退到分片上传：', e)
+      console.warn('小文件服务器上传失败，回退到分片上传：', e)
     }
   }
-  const { meta, uploaded, fp, resumed } = await createOrResumeSession(file, projectId, storageConfigId || null)
-  opts.onEvent?.({ type: 'started', strategy: meta.strategy === 'S3_MULTIPART' ? 'S3_MULTIPART' : 'SERVER_CHUNK', resumed, totalParts: meta.totalParts, partSize: meta.partSize, totalBytes: file.size })
+  const { meta, uploaded, fp, resumed } = await createOrResumeSession(file, projectId, storageConfigId || null, uploadMode)
+  opts.onEvent?.({
+    type: 'started',
+    strategy: meta.strategy === 'S3_MULTIPART' ? 'S3_MULTIPART' : meta.strategy === 'OSS_SINGLE' ? 'OSS_SINGLE' : 'SERVER_CHUNK',
+    resumed,
+    totalParts: meta.strategy === 'OSS_SINGLE' ? 1 : meta.totalParts,
+    partSize: meta.strategy === 'OSS_SINGLE' ? file.size : meta.partSize,
+    totalBytes: file.size,
+  })
+
+  if (meta.strategy === 'OSS_SINGLE') {
+    const res = await directSingleUpload(file, meta)
+    localStorage.removeItem('upload:'+fp)
+    opts.onEvent?.({ type: 'complete' })
+    return res
+  }
+
   const chunkSize: number = meta.partSize
   const totalParts: number = meta.totalParts
 
@@ -197,8 +260,9 @@ export function startResumableUpload(opts: Options) {
   let canceled = false
   let inFlight: AbortController | null = null
   let currentUploadId: string | null = null
-  let currentStrategy: 'S3_MULTIPART' | 'SERVER_CHUNK' | 'SINGLE' | null = null
-  const fp = fingerprint(opts.file, opts.projectId, opts.storageConfigId || null)
+  let currentStrategy: 'S3_MULTIPART' | 'SERVER_CHUNK' | 'SINGLE' | 'OSS_SINGLE' | null = null
+  const uploadMode = normalizedUploadMode(opts.uploadMode)
+  const fp = fingerprint(opts.file, opts.projectId, opts.storageConfigId || null, uploadMode)
   const ttlHours = parseInt(process.env.NEXT_PUBLIC_UPLOAD_RESUME_TTL_HOURS || '72', 10) || 72
   const TTL = ttlHours * 3600 * 1000
 
@@ -242,37 +306,32 @@ export function startResumableUpload(opts: Options) {
     const thresholdMB = typeof opts.thresholdMB === 'number' ? opts.thresholdMB : (parseInt(process.env.NEXT_PUBLIC_UPLOAD_CHUNK_THRESHOLD_MB || '60', 10) || 60)
     const thresholdBytes = thresholdMB * 1024 * 1024
 
-    // 小文件优先：S3 单次直传
+    // 小文件优先：按用户选择走浏览器直传或服务器中转
     if (file.size <= thresholdBytes) {
       try {
-        opts.onEvent?.({ type: 'started', strategy: 'SINGLE', resumed: false, totalParts: 1, partSize: file.size, totalBytes: file.size })
-        currentStrategy = 'SINGLE'
-        const init = await fetch('/api/uploads/initiate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, fileName: file.name, fileSize: file.size, contentType: file.type, storageConfigId: storageConfigId || null, preferSingle: true }) })
-        if (init.ok) {
+        opts.onEvent?.({ type: 'started', strategy: uploadMode === 'direct' ? 'SINGLE' : 'SERVER_CHUNK', resumed: false, totalParts: 1, partSize: file.size, totalBytes: file.size })
+        currentStrategy = uploadMode === 'direct' ? 'SINGLE' : 'SERVER_CHUNK'
+        if (uploadMode === 'direct') {
+          const init = await fetch('/api/uploads/initiate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, fileName: file.name, fileSize: file.size, contentType: file.type, storageConfigId: storageConfigId || null, preferSingle: true, uploadMode: 'direct' }) })
+          if (!init.ok) throw new Error(await readErrorMessage(init, '初始化浏览器直传失败'))
           const metaResp = await init.json(); const meta = metaResp.data; currentUploadId = meta.uploadId
-          if (meta.strategy === 'S3_SINGLE') {
-            const pre = await withBackoff(() => fetch(`/api/uploads/s3/presign-single?uploadId=${encodeURIComponent(meta.uploadId)}`), 'presign')
-            const url = (await pre.json()).data.url
-            await waitIfPaused(); if (canceled) throw new DOMException('aborted','AbortError')
-            const ctrl = new AbortController(); inFlight = ctrl
-            const put = await withBackoff(() => fetch(url, { method: 'PUT', body: file, signal: ctrl.signal }), 'part')
-            if (!put.ok) throw new Error('single put failed')
-            const etag = put.headers.get('ETag') || put.headers.get('etag') || ''
-            const fin = await fetch('/api/uploads/s3/complete-single', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uploadId: meta.uploadId, etag }) })
-            if (!fin.ok) throw new Error('complete single failed')
-            opts.onEvent?.({ type: 'complete' })
-            return (await fin.json()).data as UploadResult
-          }
+          currentStrategy = meta.strategy === 'OSS_SINGLE' ? 'OSS_SINGLE' : 'SINGLE'
+          await waitIfPaused(); if (canceled) throw new DOMException('aborted','AbortError')
+          const res = await directSingleUpload(file, meta)
+          opts.onEvent?.({ type: 'complete' })
+          return res
         }
-      } catch (e) {
-        if ((e as any)?.name === 'AbortError') throw e
-        // 回退到表单直传
+
         const fd = new FormData(); fd.append('file', file); fd.append('projectId', projectId); if (storageConfigId) fd.append('storageConfigId', storageConfigId)
         const ctrl = new AbortController(); inFlight = ctrl
         const resp = await fetch('/api/upload', { method: 'POST', body: fd, signal: ctrl.signal })
-        if (!resp.ok) throw new Error('文件上传失败')
+        if (!resp.ok) throw new Error(await readErrorMessage(resp, '文件上传失败'))
         opts.onEvent?.({ type: 'complete' })
         return (await resp.json()).data as UploadResult
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') throw e
+        if (uploadMode === 'direct') throw e
+        // 服务器中转的小文件表单上传失败时，继续回退到分片上传
       }
     }
 
@@ -296,14 +355,30 @@ export function startResumableUpload(opts: Options) {
       } catch { try { localStorage.removeItem('upload:'+fp) } catch {}; initMeta = null }
     }
     if (!initMeta) {
-      const initResp = await fetch('/api/uploads/initiate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, fileName: file.name, fileSize: file.size, contentType: file.type, storageConfigId: storageConfigId || null }) });
-      if (!initResp.ok) throw new Error('initiate failed')
+      const initResp = await fetch('/api/uploads/initiate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, fileName: file.name, fileSize: file.size, contentType: file.type, storageConfigId: storageConfigId || null, uploadMode }) });
+      if (!initResp.ok) throw new Error(await readErrorMessage(initResp, 'initiate failed'))
       initMeta = (await initResp.json()).data
       try { const now = Date.now(); initMeta.storedAt = now; initMeta.expiresAt = now + TTL; localStorage.setItem('upload:'+fp, JSON.stringify(initMeta)) } catch {}
     }
     currentUploadId = initMeta.uploadId
-    currentStrategy = initMeta.strategy === 'S3_MULTIPART' ? 'S3_MULTIPART' : 'SERVER_CHUNK'
-    opts.onEvent?.({ type: 'started', strategy: currentStrategy, resumed: false, totalParts: initMeta.totalParts, partSize: initMeta.partSize, totalBytes: file.size })
+    currentStrategy = initMeta.strategy === 'S3_MULTIPART' ? 'S3_MULTIPART' : initMeta.strategy === 'OSS_SINGLE' ? 'OSS_SINGLE' : 'SERVER_CHUNK'
+    opts.onEvent?.({
+      type: 'started',
+      strategy: currentStrategy,
+      resumed: false,
+      totalParts: currentStrategy === 'OSS_SINGLE' ? 1 : initMeta.totalParts,
+      partSize: currentStrategy === 'OSS_SINGLE' ? file.size : initMeta.partSize,
+      totalBytes: file.size,
+    })
+
+    if (currentStrategy === 'OSS_SINGLE') {
+      await waitIfPaused(); if (canceled) throw new DOMException('aborted','AbortError')
+      const res = await directSingleUpload(file, initMeta)
+      opts.onEvent?.({ type: 'complete' })
+      try { localStorage.removeItem('upload:'+fp) } catch {}
+      return res
+    }
+
     const chunkSize: number = initMeta.partSize
     const totalParts: number = initMeta.totalParts
 
@@ -397,8 +472,8 @@ export function listPendingUploadSessions(): Array<{ key: string; meta: any }> {
   return items
 }
 
-export function checkPendingForFile(file: File, projectId: string, storageConfigId?: string | null) {
-  try { const fp = `${projectId}:${storageConfigId || 'local'}:${file.name}:${file.size}:${file.lastModified}`; const raw = localStorage.getItem('upload:'+fp); if (!raw) return false; const meta = JSON.parse(raw); const ttlHours = parseInt(process.env.NEXT_PUBLIC_UPLOAD_RESUME_TTL_HOURS || '72', 10) || 72; const TTL = ttlHours * 3600 * 1000; const storedAt = typeof meta.storedAt === 'number' ? meta.storedAt : 0; const expiresAt = typeof meta.expiresAt === 'number' ? meta.expiresAt : (storedAt ? storedAt + TTL : 0); if (expiresAt && Date.now() > expiresAt) { try { localStorage.removeItem('upload:'+fp) } catch {}; return false } ; return true } catch { return false }
+export function checkPendingForFile(file: File, projectId: string, storageConfigId?: string | null, uploadMode?: UploadTransferMode) {
+  try { const fp = fingerprint(file, projectId, storageConfigId, uploadMode); const raw = localStorage.getItem('upload:'+fp); if (!raw) return false; const meta = JSON.parse(raw); const ttlHours = parseInt(process.env.NEXT_PUBLIC_UPLOAD_RESUME_TTL_HOURS || '72', 10) || 72; const TTL = ttlHours * 3600 * 1000; const storedAt = typeof meta.storedAt === 'number' ? meta.storedAt : 0; const expiresAt = typeof meta.expiresAt === 'number' ? meta.expiresAt : (storedAt ? storedAt + TTL : 0); if (expiresAt && Date.now() > expiresAt) { try { localStorage.removeItem('upload:'+fp) } catch {}; return false } ; return true } catch { return false }
 }
 
 export function listPendingSessionsByProject(projectId: string) {

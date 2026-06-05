@@ -60,37 +60,6 @@ Hot Update Manager 是一个基于 Next.js 的应用热更新管理后台（应�
 
 ## 快速开始
 
-<a id="vercel-one-click-deployment"></a>
-
-### Vercel 一键部署
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fxiaozhang959%2FhotUpdateManage&project-name=hot-update-manager&repository-name=hot-update-manager&env=DATABASE_URL%2CAUTH_SECRET%2CHOT_UPDATE_BOOTSTRAP_TOKEN&envDescription=%E6%9C%80%E5%B0%8F%E9%83%A8%E7%BD%B2%E5%8F%AA%E9%9C%80%E8%A6%81%E6%95%B0%E6%8D%AE%E5%BA%93%E8%BF%9E%E6%8E%A5%E4%B8%B2%E3%80%81Auth+%E5%AF%86%E9%92%A5%E5%92%8C%E5%88%9D%E5%A7%8B%E5%8C%96%E4%BF%9D%E6%8A%A4%E4%BB%A4%E7%89%8C%E3%80%82NEXTAUTH_URL+%E4%BC%9A%E8%87%AA%E5%8A%A8%E6%A0%B9%E6%8D%AE%E8%AE%BF%E9%97%AE%E5%9F%9F%E5%90%8D%E6%8E%A8%E6%96%AD%E3%80%82&envLink=https%3A%2F%2Fgithub.com%2Fxiaozhang959%2FhotUpdateManage%23vercel-one-click-deployment)
-
-最小部署只需要填写 3 个环境变量：
-
-```env
-DATABASE_URL=postgresql://user:password@host:5432/db
-AUTH_SECRET=replace-with-strong-random-secret
-HOT_UPDATE_BOOTSTRAP_TOKEN=replace-with-strong-random-bootstrap-token
-```
-
-说明：
-
-- `DATABASE_URL`：PostgreSQL 连接串，推荐使用 Vercel Postgres、Neon、Supabase
-  或其他托管 PostgreSQL。
-- `AUTH_SECRET`：Auth.js/NextAuth 会话密钥，可用 `openssl rand -base64 32` 生成。
-- `HOT_UPDATE_BOOTSTRAP_TOKEN`：生产环境初始化管理员账号时的保护令牌。
-- `NEXTAUTH_URL` 不再必填，系统会根据 Vercel 域名或自定义域名自动推断。
-- `AUTH_TRANSPORT_PUBLIC_KEY_PEM` / `AUTH_TRANSPORT_PRIVATE_KEY_PEM` 不再必填；
-  未配置时系统会自动生成 RSA 密钥对并保存到数据库。
-- S3、Redis、SMTP、邮件验证等都不是一键部署必填项，可部署后按需添加。
-
-Vercel 构建时会自动：
-
-```text
-切换 PostgreSQL Prisma schema → 生成 Prisma Client → 同步数据库表结构 → next build
-```
-
 ### 环境要求
 
 - Node.js 18.18+（建议 Node.js 20 LTS 或更新的 LTS）
@@ -229,7 +198,6 @@ openssl rsa -pubout -in auth-transport-private.pem -out auth-transport-public.pe
 ```bash
 npm run dev           # 启动开发服务器
 npm run build         # 生产构建
-npm run build:vercel  # Prisma generate + migrate deploy + Next build
 npm run start         # 启动生产服务
 npm run lint          # ESLint 检查
 npm run test          # Vitest 单元测试
@@ -412,29 +380,6 @@ POST /api/uploads/s3/abort
 
 
 ## 部署说明
-
-### Vercel
-
-建议使用 PostgreSQL，并至少配置：
-
-```env
-DB_PROVIDER=postgresql
-POSTGRESQL_URL=postgresql://...
-POSTGRES_PRISMA_URL=postgresql://...
-POSTGRES_URL_NON_POOLING=postgresql://...
-DATABASE_URL_NON_POOLING=postgresql://...
-NEXTAUTH_SECRET=replace-with-random-secret
-NEXTAUTH_URL=https://your-domain.com
-```
-
-构建命令：
-
-```bash
-npm run build:vercel
-```
-
-注意：Vercel 等无持久本地磁盘环境不适合依赖本地 `uploads/` 保存文件。
-生产环境建议配置 S3/OSS/WebDAV 等外部存储。S3 直传流程不依赖服务端本地分片缓存。
 
 ### 自托管 Node.js
 
