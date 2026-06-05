@@ -34,7 +34,7 @@ import {
   TabsTrigger,
 } from '@/components/ui'
 import { FileUpload } from '@/components/ui/file-upload'
-import { uploadFileResumable } from '@/lib/client/resumable-upload'
+import { uploadFileResumable, type UploadTransferMode } from '@/lib/client/resumable-upload'
 import { formatDate, formatDateTime } from '@/lib/timezone'
 import type { ArtifactFileRole, ArtifactType } from '@/lib/version-artifacts'
 import {
@@ -68,6 +68,7 @@ import type {
 
 type UploadMethod = 'url' | 'file'
 type ProjectScope = 'user' | 'admin'
+const UPLOAD_TRANSFER_MODE_KEY = 'hot-update-manager:upload-transfer-mode'
 
 interface ProjectWorkbenchProps {
   projectId: string
@@ -95,6 +96,7 @@ interface PrimaryArtifactDraft {
   uploadMethod: UploadMethod
   downloadUrl: string
   file: File | null
+  uploadTransferMode: UploadTransferMode
   md5: string
   size: number | string | null
   storageProvider: string | null
@@ -175,6 +177,28 @@ function defaultStorageValue(options: StorageOptionItem[]) {
   return storageValueOf(preferred?.id ?? null)
 }
 
+function readUploadTransferModePreference(): UploadTransferMode {
+  if (typeof window === 'undefined') return 'direct'
+  return window.localStorage.getItem(UPLOAD_TRANSFER_MODE_KEY) === 'server' ? 'server' : 'direct'
+}
+
+function writeUploadTransferModePreference(value: UploadTransferMode) {
+  try {
+    window.localStorage.setItem(UPLOAD_TRANSFER_MODE_KEY, value)
+  } catch {
+    // localStorage 不可用时只影响偏好记忆，不阻断上传流程
+  }
+}
+
+function supportsBrowserDirectUpload(storage?: StorageOptionItem | null) {
+  return storage?.provider === 'S3' || storage?.provider === 'OSS'
+}
+
+function findStorageOption(options: StorageOptionItem[], storageConfigId?: string | null) {
+  const value = storageValueOf(storageConfigId)
+  return options.find((item) => storageValueOf(item.id) === value) || null
+}
+
 function storageScopeLabel(scope: string, apiScope: ProjectScope) {
   switch (scope) {
     case 'user':
@@ -214,6 +238,7 @@ function buildVersionFormState(
   version?: ProjectVersionItem | null,
 ): VersionFormState {
   const defaultStorage = defaultStorageValue(availableStorages)
+  const uploadTransferMode = readUploadTransferModePreference()
   const primaryArtifacts = architectures.map((architecture) => {
     const artifact = version?.artifacts.find(
       (item) => item.fileRole === 'PRIMARY' && item.architectureKey === architecture.key,
@@ -227,6 +252,7 @@ function buildVersionFormState(
       uploadMethod: 'url' as UploadMethod,
       downloadUrl: artifact?.rawDownloadUrl || artifact?.downloadUrl || '',
       file: null,
+      uploadTransferMode,
       md5: artifact?.md5 || '',
       size: artifact?.size ?? null,
       storageProvider: artifact?.storageProvider || null,
@@ -347,6 +373,57 @@ function UploadMethodSelector({
           >
             <Icon className="h-4 w-4 shrink-0" />
             <span className="truncate">{option.title}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function UploadTransferModeSelector({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: UploadTransferMode
+  onChange: (value: UploadTransferMode) => void
+  disabled?: boolean
+}) {
+  const options: Array<{
+    value: UploadTransferMode
+    title: string
+    description: string
+  }> = [
+    {
+      value: 'direct',
+      title: '浏览器直传',
+      description: '默认推荐；S3/OSS 不经过服务端分片缓存。',
+    },
+    {
+      value: 'server',
+      title: '服务器中转',
+      description: '兼容更多存储；Vercel 等 Serverless 环境不推荐。',
+    },
+  ]
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {options.map((option) => {
+        const selected = value === option.value
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            disabled={disabled}
+            className={`rounded-2xl border px-4 py-3 text-left transition-all ${selected
+              ? 'border-orange-200 bg-orange-50 text-orange-800 shadow-sm'
+              : 'border-slate-200 bg-white text-slate-600 hover:border-orange-100 hover:bg-orange-50/40'} ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+            aria-pressed={selected}
+          >
+            <div className="text-sm font-semibold">{option.title}</div>
+            <div className="mt-1 text-xs leading-5 opacity-80">{option.description}</div>
           </button>
         )
       })}
@@ -510,8 +587,17 @@ function VersionDialog({
       if (!draft.file) {
         throw new Error(`${label} 还没有选择文件`)
       }
+      const selectedStorage = findStorageOption(availableStorages, draft.storageConfigId)
+      if (draft.uploadTransferMode === 'direct' && !supportsBrowserDirectUpload(selectedStorage)) {
+        throw new Error(`${label} 的目标存储暂不支持浏览器直传，请改用服务器中转上传`)
+      }
       setUploadingLabel(label)
-      const uploaded = await uploadFileResumable({ file: draft.file, projectId, storageConfigId: draft.storageConfigId })
+      const uploaded = await uploadFileResumable({
+        file: draft.file,
+        projectId,
+        storageConfigId: draft.storageConfigId,
+        uploadMode: draft.uploadTransferMode,
+      })
       return {
         downloadUrl: uploaded.url,
         size: uploaded.size,
@@ -832,6 +918,22 @@ function VersionDialog({
                                 <p className="text-xs leading-5 text-slate-500">
                                   上传完成后会自动回填体积、MD5 和存储信息。
                                 </p>
+                              </div>
+                              <div className="space-y-2 md:col-span-2">
+                                <Label>传输模式</Label>
+                                <UploadTransferModeSelector
+                                  value={artifact.uploadTransferMode}
+                                  onChange={(uploadTransferMode) => {
+                                    writeUploadTransferModePreference(uploadTransferMode)
+                                    patchPrimary(artifact.architectureKey, { uploadTransferMode })
+                                  }}
+                                  disabled={submitting}
+                                />
+                                {artifact.uploadTransferMode === 'direct' && !supportsBrowserDirectUpload(findStorageOption(availableStorages, artifact.storageConfigId)) && (
+                                  <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+                                    当前目标存储暂不支持浏览器直传，请选择“服务器中转”。S3/OSS 支持浏览器直传；WebDAV、兰奏和本地存储需要服务器中转。
+                                  </p>
+                                )}
                               </div>
                             </div>
                           )}

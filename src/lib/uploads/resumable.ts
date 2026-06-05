@@ -6,7 +6,8 @@ import { getActiveStorageProvider, getProviderByConfigId } from '@/lib/storage'
 import type { StorageProvider } from '@/lib/storage/types'
 import { prisma } from '@/lib/prisma'
 
-export type ResumableStrategy = 'LOCAL_CHUNK' | 'SERVER_CHUNK_TO_REMOTE' | 'S3_MULTIPART' | 'S3_SINGLE'
+export type UploadTransferMode = 'direct' | 'server'
+export type ResumableStrategy = 'LOCAL_CHUNK' | 'SERVER_CHUNK_TO_REMOTE' | 'S3_MULTIPART' | 'S3_SINGLE' | 'OSS_SINGLE'
 
 export interface UploadSessionMeta {
   uploadId: string
@@ -136,8 +137,9 @@ export function choosePartSize(fileSize: number) {
   return size
 }
 
-export async function createSession(params: { userId: string, storageOwnerUserId?: string | null, projectId: string, fileName: string, fileSize: number, contentType?: string, storageConfigId?: string | null, preferSingle?: boolean }) {
+export async function createSession(params: { userId: string, storageOwnerUserId?: string | null, projectId: string, fileName: string, fileSize: number, contentType?: string, storageConfigId?: string | null, preferSingle?: boolean, uploadMode?: UploadTransferMode }) {
   const { userId, projectId } = params
+  const uploadMode: UploadTransferMode = params.uploadMode === 'server' ? 'server' : 'direct'
   const storageOwnerUserId = params.storageOwnerUserId || userId
   const active = await getActiveStorageProvider(storageOwnerUserId)
   const specified = params.storageConfigId ? await getProviderByConfigId(params.storageConfigId, storageOwnerUserId) : null
@@ -150,12 +152,24 @@ export async function createSession(params: { userId: string, storageOwnerUserId
   const providerName = providerSelection.provider.name
   const partSize = choosePartSize(params.fileSize)
   const totalParts = Math.max(1, Math.ceil(params.fileSize / partSize))
+  let strategy: ResumableStrategy
+  if (uploadMode === 'direct') {
+    if (providerName === 'S3') {
+      strategy = params.preferSingle ? 'S3_SINGLE' : 'S3_MULTIPART'
+    } else if (providerName === 'OSS') {
+      strategy = 'OSS_SINGLE'
+    } else {
+      throw new Error(`当前存储配置（${providerName}）暂不支持浏览器直传，请改用服务器中转上传`)
+    }
+  } else {
+    strategy = providerName === 'LOCAL' ? 'LOCAL_CHUNK' : 'SERVER_CHUNK_TO_REMOTE'
+  }
 
   const safeFileName = safeName(params.fileName)
   const metaBase: Omit<UploadSessionMeta, 'uploadId'> = {
     userId,
     storageOwnerUserId,
-    strategy: providerName === 'S3' ? (params.preferSingle ? 'S3_SINGLE' : 'S3_MULTIPART') : (providerName === 'LOCAL' ? 'LOCAL_CHUNK' : 'SERVER_CHUNK_TO_REMOTE'),
+    strategy,
     projectId,
     fileName: safeFileName,
     contentType: params.contentType,
@@ -186,8 +200,8 @@ export async function createSession(params: { userId: string, storageOwnerUserId
     metaBase.s3UploadId = res.UploadId || null
   }
 
-  // S3 直传会话不落本地磁盘，避免 Vercel 等只读文件系统报错
-  if (providerName === 'S3') {
+  // 对象存储直传会话不落本地磁盘，避免 Vercel 等只读文件系统报错
+  if (strategy === 'S3_SINGLE' || strategy === 'S3_MULTIPART' || strategy === 'OSS_SINGLE') {
     const uploadId = createStatelessUploadId(metaBase)
     return {
       uploadId,
@@ -196,7 +210,7 @@ export async function createSession(params: { userId: string, storageOwnerUserId
   }
 
   if (process.env.VERCEL) {
-    throw new Error('当前存储策略依赖服务端本地分片缓存，Vercel 环境请改用 S3 直传')
+    throw new Error('当前选择了服务器中转上传，该策略依赖服务端本地分片缓存，Vercel 环境请改用浏览器直传')
   }
 
   const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
