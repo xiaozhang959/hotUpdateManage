@@ -27,6 +27,10 @@ export function createLanzouProvider(raw: Partial<LanzouConfig>): StorageProvide
 
       const md5 = await calculateMd5({ buffer, filePath })
       const client = new LanzouClient(cfg)
+      const password = cfg.sharePassword?.trim()
+      if (!password) {
+        throw new Error('LANZOU sharePassword 必须填写；编辑配置保存时可自动生成')
+      }
       const uploaded = await client.uploadFile({
         folderId: cfg.folderId,
         fileName,
@@ -36,16 +40,9 @@ export function createLanzouProvider(raw: Partial<LanzouConfig>): StorageProvide
       })
 
       const fileId = String(uploaded.id)
-      const password = cfg.sharePassword?.trim()
-      if (password) {
-        await client.setFilePassword(fileId, password)
-      }
+      await client.setFilePassword(fileId, password)
 
       const share = await client.shareFile(fileId)
-      if (!password && share.onof === '1' && share.pwd) {
-        throw new Error('蓝奏云返回的分享链接需要提取码，请在 LANZOU 配置中设置 sharePassword 后重试')
-      }
-
       const url = client.buildShareUrl(share) || client.buildShareUrl(uploaded)
       if (!url) {
         throw new Error('LANZOU upload succeeded but share url is missing')

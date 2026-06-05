@@ -1,12 +1,17 @@
 import crypto from 'node:crypto'
+import http from 'node:http'
+import https from 'node:https'
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { Readable } from 'node:stream'
+import tls from 'node:tls'
+import { hasLanzouAllProxy, hasLanzouResolveProxy } from './config'
 
 const DEFAULT_BASE_URL = 'https://pc.woozooo.com'
 const DEFAULT_SHARE_BASE_URL = 'https://www.lanzouf.com'
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+const MAX_PROXY_REDIRECTS = 5
 
 export interface LanzouConfig {
   cookie?: string
@@ -17,6 +22,8 @@ export interface LanzouConfig {
   userAgent?: string
   sharePassword?: string
   resolverEndpoint?: string
+  proxyUrl?: string
+  proxyMode?: 'off' | 'all' | 'resolve' | string
   timeoutMs?: number
 }
 
@@ -55,6 +62,13 @@ interface MultipartFile {
   contentType: string
   buffer?: Buffer
   filePath?: string
+}
+
+interface LanzouTextResponse {
+  ok: boolean
+  status: number
+  headers: Record<string, string>
+  text: string
 }
 
 export class LanzouClient {
@@ -166,20 +180,24 @@ export class LanzouClient {
   }
 
   private async postDoupload<T>(body: Record<string, string>): Promise<T> {
-    return this.requestJson<T>(buildUrl(this.config.baseUrl, 'doupload.php'), {
-      method: 'POST',
-      headers: {
-        Cookie: this.config.cookie!.trim(),
-        'User-Agent': this.config.userAgent,
-        Referer: this.config.baseUrl,
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+    return this.requestJson<T>(
+      buildUrl(this.config.baseUrl, 'doupload.php'),
+      {
+        method: 'POST',
+        headers: {
+          Cookie: this.config.cookie!.trim(),
+          'User-Agent': this.config.userAgent,
+          Referer: this.config.baseUrl,
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        },
+        body: new URLSearchParams(body).toString(),
       },
-      body: new URLSearchParams(body).toString(),
-    })
+      { allowProxy: hasLanzouAllProxy(this.config) },
+    )
   }
 
-  private async requestJson<T>(url: string, init: RequestInit & { duplex?: 'half' }): Promise<T> {
-    const text = await fetchTextWithTimeout(url, this.config, init)
+  private async requestJson<T>(url: string, init: RequestInit & { duplex?: 'half' }, options: { allowProxy?: boolean } = {}): Promise<T> {
+    const text = await fetchTextWithTimeout(url, this.config, init, options)
     try {
       return JSON.parse(text) as T
     } catch {
@@ -208,11 +226,16 @@ async function resolveLanzouDownloadUrlByEndpoint(shareUrl: string, config: Lanz
   const password = config.sharePassword?.trim()
   if (password) url.searchParams.set('pwd', password)
 
-  const text = await fetchTextWithTimeout(url.toString(), config, {
-    headers: {
-      'User-Agent': config.userAgent?.trim() || DEFAULT_USER_AGENT,
+  const text = await fetchTextWithTimeout(
+    url.toString(),
+    config,
+    {
+      headers: {
+        'User-Agent': config.userAgent?.trim() || DEFAULT_USER_AGENT,
+      },
     },
-  })
+    { allowProxy: true },
+  )
   const data = JSON.parse(text) as { code?: number; msg?: string; downUrl?: string }
   if (data.code !== 200 || !data.downUrl) {
     throw new Error(data.msg || 'LANZOU resolver did not return downUrl')
@@ -285,49 +308,52 @@ async function resolveLanzouDownloadUrlEmbedded(shareUrl: string, config: Lanzou
 }
 
 async function postLanzouProcess(url: string, form: Record<string, string>, referer: string, config: LanzouConfig): Promise<LanzouProcessResponse> {
-  const text = await fetchTextWithTimeout(url, config, {
-    method: 'POST',
-    headers: {
-      'User-Agent': config.userAgent?.trim() || DEFAULT_USER_AGENT,
-      Referer: referer,
-      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+  const text = await fetchTextWithTimeout(
+    url,
+    config,
+    {
+      method: 'POST',
+      headers: {
+        'User-Agent': config.userAgent?.trim() || DEFAULT_USER_AGENT,
+        Referer: referer,
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      },
+      body: new URLSearchParams(form).toString(),
     },
-    body: new URLSearchParams(form).toString(),
-  })
+    { allowProxy: true },
+  )
   return JSON.parse(text) as LanzouProcessResponse
 }
 
 async function resolveLanzouRedirect(url: string, referer: string, config: LanzouConfig) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), clampTimeout(config.timeoutMs))
-  try {
-    const res = await fetch(url, {
-      redirect: 'manual',
-      headers: {
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'zh-CN,zh;q=0.9',
-        Cookie: 'down_ip=1',
-        Referer: referer,
-        'User-Agent': config.userAgent?.trim() || DEFAULT_USER_AGENT,
-      },
-      signal: controller.signal,
-    })
-    const location = res.headers.get('location')
-    return location ? new URL(location, url).toString() : url
-  } finally {
-    clearTimeout(timer)
-  }
+  const res = await requestTextWithTimeout(url, config, {
+    redirect: 'manual',
+    headers: {
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'zh-CN,zh;q=0.9',
+      Cookie: 'down_ip=1',
+      Referer: referer,
+      'User-Agent': config.userAgent?.trim() || DEFAULT_USER_AGENT,
+    },
+  }, { allowProxy: true })
+  const location = res.headers.location
+  return location ? new URL(location, url).toString() : url
 }
 
 async function fetchLanzouHtml(url: string, config: LanzouConfig) {
   let acwCookie = ''
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const html = await fetchTextWithTimeout(url, config, {
-      headers: {
-        ...(acwCookie ? { Cookie: `acw_sc__v2=${acwCookie}` } : {}),
-        'User-Agent': config.userAgent?.trim() || DEFAULT_USER_AGENT,
+    const html = await fetchTextWithTimeout(
+      url,
+      config,
+      {
+        headers: {
+          ...(acwCookie ? { Cookie: `acw_sc__v2=${acwCookie}` } : {}),
+          'User-Agent': config.userAgent?.trim() || DEFAULT_USER_AGENT,
+        },
       },
-    })
+      { allowProxy: true },
+    )
     const nextCookie = extractAcwScV2Cookie(html)
     if (nextCookie) {
       acwCookie = nextCookie
@@ -338,18 +364,235 @@ async function fetchLanzouHtml(url: string, config: LanzouConfig) {
   throw new Error('蓝奏云触发 acw_sc__v2 验证，内置解析未通过')
 }
 
-async function fetchTextWithTimeout(url: string, config: LanzouConfig, init: RequestInit & { duplex?: 'half' } = {}) {
+async function fetchTextWithTimeout(
+  url: string,
+  config: LanzouConfig,
+  init: RequestInit & { duplex?: 'half' } = {},
+  options: { allowProxy?: boolean } = {},
+) {
+  const response = await requestTextWithTimeout(url, config, init, options)
+  if (!response.ok) {
+    throw new Error(`LANZOU HTTP ${response.status}: ${response.text.slice(0, 200)}`)
+  }
+  return response.text
+}
+
+async function requestTextWithTimeout(
+  url: string,
+  config: LanzouConfig,
+  init: RequestInit & { duplex?: 'half' } = {},
+  options: { allowProxy?: boolean } = {},
+): Promise<LanzouTextResponse> {
+  if (options.allowProxy && hasLanzouResolveProxy(config)) {
+    return requestTextViaHttpProxy(url, config, init)
+  }
+
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), clampTimeout(config.timeoutMs))
   try {
     const res = await fetch(url, { ...init, signal: controller.signal })
     const text = await res.text()
-    if (!res.ok) {
-      throw new Error(`LANZOU HTTP ${res.status}: ${text.slice(0, 200)}`)
+    return {
+      ok: res.ok,
+      status: res.status,
+      headers: headersToRecord(res.headers),
+      text,
     }
-    return text
   } finally {
     clearTimeout(timer)
+  }
+}
+
+async function requestTextViaHttpProxy(
+  url: string,
+  config: LanzouConfig,
+  init: RequestInit & { duplex?: 'half' },
+  redirectCount = 0,
+): Promise<LanzouTextResponse> {
+  const proxyUrl = config.proxyUrl?.trim()
+  if (!proxyUrl) throw new Error('LANZOU proxyUrl is required')
+  const proxy = new URL(proxyUrl)
+  if (proxy.protocol !== 'http:') {
+    throw new Error('LANZOU proxyUrl 当前仅支持 http:// 代理')
+  }
+
+  const target = new URL(url)
+  const method = init.method || 'GET'
+  const headers = headersInitToRecord(init.headers)
+  const body = bodyInitToString(init.body)
+  if (body && !headers['Content-Length'] && !headers['content-length']) {
+    headers['Content-Length'] = String(Buffer.byteLength(body))
+  }
+
+  let response: LanzouTextResponse
+  if (target.protocol === 'https:') {
+    response = await requestHttpsViaHttpProxy(target, proxy, method, headers, body, clampTimeout(config.timeoutMs))
+  } else if (target.protocol === 'http:') {
+    response = await requestHttpViaHttpProxy(target, proxy, method, headers, body, clampTimeout(config.timeoutMs))
+  } else {
+    throw new Error(`LANZOU proxy does not support protocol: ${target.protocol}`)
+  }
+
+  const location = response.headers.location
+  if (shouldFollowRedirect(init, response, location)) {
+    if (redirectCount >= MAX_PROXY_REDIRECTS) throw new Error('LANZOU proxy redirect limit exceeded')
+    const redirectedUrl = new URL(location!, url).toString()
+    return requestTextViaHttpProxy(redirectedUrl, config, buildRedirectInit(init, response.status, method), redirectCount + 1)
+  }
+  return response
+}
+
+function requestHttpViaHttpProxy(target: URL, proxy: URL, method: string, headers: Record<string, string>, body: string | undefined, timeoutMs: number) {
+  return new Promise<LanzouTextResponse>((resolve, reject) => {
+    const req = http.request(
+      {
+        host: proxy.hostname,
+        port: Number(proxy.port || 80),
+        method,
+        path: target.toString(),
+        headers: { ...proxyHeaders(proxy), ...headers, Host: target.host },
+        timeout: timeoutMs,
+      },
+      (res) => collectNodeResponse(res, resolve),
+    )
+    req.on('error', reject)
+    req.on('timeout', () => req.destroy(new Error('LANZOU proxy request timeout')))
+    if (body) req.write(body)
+    req.end()
+  })
+}
+
+function requestHttpsViaHttpProxy(target: URL, proxy: URL, method: string, headers: Record<string, string>, body: string | undefined, timeoutMs: number) {
+  return new Promise<LanzouTextResponse>((resolve, reject) => {
+    const connectReq = http.request({
+      host: proxy.hostname,
+      port: Number(proxy.port || 80),
+      method: 'CONNECT',
+      path: `${target.hostname}:${target.port || 443}`,
+      headers: proxyHeaders(proxy),
+      timeout: timeoutMs,
+    })
+
+    connectReq.on('connect', (connectRes, socket) => {
+      if (connectRes.statusCode !== 200) {
+        socket.destroy()
+        reject(new Error(`LANZOU proxy CONNECT failed: ${connectRes.statusCode}`))
+        return
+      }
+
+      const secureSocket = tls.connect({ socket, servername: target.hostname })
+      secureSocket.once('secureConnect', () => {
+        const req = https.request(
+          {
+            host: target.hostname,
+            port: Number(target.port || 443),
+            method,
+            path: `${target.pathname}${target.search}`,
+            headers: { ...headers, Host: target.host },
+            createConnection: () => secureSocket,
+            timeout: timeoutMs,
+          },
+          (res) => collectNodeResponse(res, resolve),
+        )
+        req.on('error', reject)
+        req.on('timeout', () => req.destroy(new Error('LANZOU proxy request timeout')))
+        if (body) req.write(body)
+        req.end()
+      })
+      secureSocket.on('error', reject)
+    })
+    connectReq.on('error', reject)
+    connectReq.on('timeout', () => connectReq.destroy(new Error('LANZOU proxy CONNECT timeout')))
+    connectReq.end()
+  })
+}
+
+function collectNodeResponse(
+  res: http.IncomingMessage,
+  resolve: (value: LanzouTextResponse) => void,
+) {
+  const chunks: Buffer[] = []
+  res.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)))
+  res.on('end', () => {
+    const status = res.statusCode || 0
+    resolve({
+      ok: status >= 200 && status < 300,
+      status,
+      headers: nodeHeadersToRecord(res.headers),
+      text: Buffer.concat(chunks).toString('utf-8'),
+    })
+  })
+}
+
+function headersInitToRecord(headers?: HeadersInit): Record<string, string> {
+  const record: Record<string, string> = {}
+  if (!headers) return record
+  if (typeof Headers !== 'undefined' && headers instanceof Headers) {
+    headers.forEach((value, key) => {
+      record[key] = value
+    })
+    return record
+  }
+  if (Array.isArray(headers)) {
+    for (const [key, value] of headers) {
+      record[key] = value
+    }
+    return record
+  }
+  for (const [key, value] of Object.entries(headers)) {
+    record[key] = String(value)
+  }
+  return record
+}
+
+function headersToRecord(headers: Headers): Record<string, string> {
+  const record: Record<string, string> = {}
+  headers.forEach((value, key) => {
+    record[key.toLowerCase()] = value
+  })
+  return record
+}
+
+function nodeHeadersToRecord(headers: http.IncomingHttpHeaders): Record<string, string> {
+  const record: Record<string, string> = {}
+  for (const [key, value] of Object.entries(headers)) {
+    if (typeof value === 'string') record[key.toLowerCase()] = value
+    else if (Array.isArray(value)) record[key.toLowerCase()] = value.join(', ')
+  }
+  return record
+}
+
+function bodyInitToString(body: BodyInit | null | undefined) {
+  if (!body) return undefined
+  if (typeof body === 'string') return body
+  if (body instanceof URLSearchParams) return body.toString()
+  throw new Error('LANZOU proxy request body only supports string or URLSearchParams')
+}
+
+function shouldFollowRedirect(init: RequestInit, response: LanzouTextResponse, location?: string) {
+  if (!location || response.status < 300 || response.status >= 400) return false
+  if (init.redirect === 'manual') return false
+  if (init.redirect === 'error') throw new Error(`LANZOU proxy redirect blocked: ${response.status}`)
+  return true
+}
+
+function buildRedirectInit(init: RequestInit & { duplex?: 'half' }, status: number, method: string): RequestInit & { duplex?: 'half' } {
+  if (status !== 303 && !((status === 301 || status === 302) && method !== 'GET' && method !== 'HEAD')) return init
+  const headers = headersInitToRecord(init.headers)
+  deleteHeader(headers, 'Content-Length')
+  deleteHeader(headers, 'Content-Type')
+  return { ...init, method: 'GET', body: undefined, headers }
+}
+
+function deleteHeader(headers: Record<string, string>, name: string) {
+  const matchedKey = Object.keys(headers).find((key) => key.toLowerCase() === name.toLowerCase())
+  if (matchedKey) delete headers[matchedKey]
+}
+
+function proxyHeaders(proxy: URL): Record<string, string> {
+  if (!proxy.username) return {}
+  return {
+    'Proxy-Authorization': `Basic ${Buffer.from(`${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}`).toString('base64')}`,
   }
 }
 

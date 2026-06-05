@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { normalizeLanzouConfig } from '@/lib/lanzou/config'
 
 export async function GET() {
   const session = await auth()
@@ -21,6 +22,13 @@ export async function POST(req: NextRequest) {
   if (!name || !provider) {
     return NextResponse.json({ error: 'name 与 provider 必填' }, { status: 400 })
   }
+  let normalizedConfig
+  try {
+    normalizedConfig = normalizeLanzouConfig(provider, config)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '存储配置无效'
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
 
   if (isDefault) {
     await prisma.storageConfig.updateMany({ where: { userId: session.user.id }, data: { isDefault: false } })
@@ -31,7 +39,7 @@ export async function POST(req: NextRequest) {
     provider,
     userId: session.user.id,
     isDefault: Boolean(isDefault),
-    configJson: JSON.stringify(config || {})
+    configJson: JSON.stringify(normalizedConfig)
   }
   let saved
   if (id) {

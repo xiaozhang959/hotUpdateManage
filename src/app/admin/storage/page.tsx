@@ -166,8 +166,20 @@ export default function AdminStoragePage() {
             <Input value={form.config?.resolverEndpoint||''} onChange={e=>setForm({...form, config:{...form.config, resolverEndpoint:e.target.value}})} placeholder="可选，https://example.com/lanzou/"/>
           </div>
           <div>
-            <Label>sharePassword<InfoHint text="可选。填写后上传完成会给文件设置提取码，下载解析也会使用同一提取码；蓝奏云文件提取码长度 2-6 位。" /></Label>
-            <Input value={form.config?.sharePassword||''} onChange={e=>setForm({...form, config:{...form.config, sharePassword:e.target.value}})} placeholder="可选，2-6位"/>
+            <Label>sharePassword<InfoHint text="必需。留空保存或测试时会自动生成；上传完成会给文件设置提取码，下载解析也会使用同一提取码；蓝奏云文件提取码长度 2-6 位。" /></Label>
+            <Input value={form.config?.sharePassword||''} onChange={e=>setForm({...form, config:{...form.config, sharePassword:e.target.value}})} placeholder="留空自动生成，2-6位"/>
+          </div>
+          <div>
+            <Label>proxyMode<InfoHint text="代理模式：off=不使用代理；resolve=仅下载解析走代理；all=除实际文件上传外的蓝奏云请求都走代理。" /></Label>
+            <select className="border rounded h-10 px-2 w-full" value={form.config?.proxyMode||'off'} onChange={e=>setForm({...form, config:{...form.config, proxyMode:e.target.value}})}>
+              <option value="off">off</option>
+              <option value="resolve">resolve</option>
+              <option value="all">all</option>
+            </select>
+          </div>
+          <div>
+            <Label>proxyUrl<InfoHint text="proxyMode 为 resolve/all 时必填。当前仅支持 http:// 代理，可包含代理账号密码；实际文件上传不会使用代理。" /></Label>
+            <Input value={form.config?.proxyUrl||''} onChange={e=>setForm({...form, config:{...form.config, proxyUrl:e.target.value}})} placeholder="http://127.0.0.1:7890"/>
           </div>
           <div>
             <Label>timeoutMs<InfoHint text="蓝奏云上传/删除/解析请求超时，默认 30000。" /></Label>
@@ -193,11 +205,14 @@ export default function AdminStoragePage() {
     try {
       const payload = { id: form.id||undefined, name: form.name, provider: form.provider, userId: form.scope==='global' ? null : 'self', isDefault: form.isDefault, config: form.config }
       const res = await fetch('/api/admin/storage-configs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
-      if (!res.ok) throw new Error('保存失败')
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error || '保存失败')
       toast.success('已保存')
       setOpen(false)
       fetchItems()
-    } catch { toast.error('保存失败') } finally { setSaving(false) }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '保存失败')
+    } finally { setSaving(false) }
   }
 
   const remove = async (id: string) => {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { normalizeLanzouConfig } from '@/lib/lanzou/config'
 import type { Prisma } from '@prisma/client'
 
 export async function GET(req: NextRequest) {
@@ -33,6 +34,13 @@ export async function POST(req: NextRequest) {
   if (!name || !provider) {
     return NextResponse.json({ error: 'name 与 provider 必填' }, { status: 400 })
   }
+  let normalizedConfig
+  try {
+    normalizedConfig = normalizeLanzouConfig(provider, config)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '存储配置无效'
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
 
   // 解析作用域：'self' 表示仅管理员本人使用
   const ownerId = userId === 'self' ? session.user.id : userId
@@ -47,7 +55,7 @@ export async function POST(req: NextRequest) {
     provider,
     userId: ownerId,
     isDefault: Boolean(isDefault),
-    configJson: JSON.stringify(config || {})
+    configJson: JSON.stringify(normalizedConfig)
   }
 
   let saved
