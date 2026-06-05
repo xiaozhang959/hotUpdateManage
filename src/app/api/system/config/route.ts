@@ -7,6 +7,8 @@ export async function GET() {
     // 只返回前端需要的配置项
     const publicConfigs = {
       registration_enabled: await getConfig('registration_enabled'),
+      require_email_verification: await getConfig('require_email_verification'),
+      admin_require_email_verification: await getConfig('admin_require_email_verification'),
       upload_enabled: await getConfig('upload_enabled'),
       require_md5_for_link_uploads: await getConfig('require_md5_for_link_uploads'),
       max_upload_size: await getConfig('max_upload_size'),

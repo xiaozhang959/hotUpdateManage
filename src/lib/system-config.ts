@@ -87,6 +87,13 @@ export const DEFAULT_CONFIGS: SystemConfigItem[] = [
     description: '是否需要邮箱验证'
   },
   {
+    key: 'admin_require_email_verification',
+    value: true,
+    type: 'boolean',
+    category: 'auth',
+    description: '管理员是否需要邮箱验证'
+  },
+  {
     key: 'default_user_role',
     value: 'USER',
     type: 'string',

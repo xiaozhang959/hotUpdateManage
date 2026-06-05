@@ -4,7 +4,10 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import type { Adapter } from "next-auth/adapters"
 import { prisma } from "@/lib/prisma"
 import { parseLoginEncryptedPayload } from "@/lib/server/auth-request-payloads"
-import { validateLoginCredentials } from "@/lib/server/login-auth"
+import {
+  shouldRequireEmailVerificationForRole,
+  validateLoginCredentials,
+} from "@/lib/server/login-auth"
 
 const adapter = PrismaAdapter(prisma) as unknown as Adapter
 
@@ -62,10 +65,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { emailVerified: true }
+          select: { emailVerified: true, role: true }
         })
         if (dbUser) {
           token.emailVerified = dbUser.emailVerified
+          token.role = dbUser.role
         }
       }
       return token
@@ -75,7 +79,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string
         session.user.role = token.role as string
         // NextAuth's Session.user.emailVerified is typically Date | null; coerce boolean -> Date | null
-        session.user.emailVerified = token.emailVerified ? new Date() : null
+        const requiresEmailVerification = await shouldRequireEmailVerificationForRole(session.user.role)
+        session.user.emailVerified = token.emailVerified || !requiresEmailVerification ? new Date() : null
       }
       return session
     }

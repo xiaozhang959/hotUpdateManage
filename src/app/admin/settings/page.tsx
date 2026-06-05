@@ -308,6 +308,9 @@ export default function SystemSettingsPage() {
     const currentValue = modifiedConfigs[config.key] !== undefined 
       ? modifiedConfigs[config.key] 
       : config.value
+    const booleanLabel = config.key === 'admin_require_email_verification'
+      ? (currentValue ? '是' : '否')
+      : (currentValue ? '启用' : '禁用')
 
     switch (config.type) {
       case 'boolean':
@@ -327,7 +330,7 @@ export default function SystemSettingsPage() {
               />
             </button>
             <span className="text-sm font-medium">
-              {currentValue ? '启用' : '禁用'}
+              {booleanLabel}
             </span>
           </div>
         )

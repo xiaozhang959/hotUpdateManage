@@ -40,6 +40,20 @@ export async function findUserByAccount(account: string) {
   })
 }
 
+export async function shouldRequireEmailVerificationForRole(role: string): Promise<boolean> {
+  const requireEmailVerification = await getConfig('require_email_verification')
+  if (!requireEmailVerification) {
+    return false
+  }
+
+  if (role === 'ADMIN') {
+    const adminRequireEmailVerification = await getConfig('admin_require_email_verification')
+    return adminRequireEmailVerification !== false
+  }
+
+  return true
+}
+
 export async function validateLoginCredentials(
   account: string,
   password: string,
@@ -72,7 +86,7 @@ export async function validateLoginCredentials(
     }
   }
 
-  const requireEmailVerification = await getConfig('require_email_verification')
+  const requireEmailVerification = await shouldRequireEmailVerificationForRole(user.role)
   if (requireEmailVerification && !user.emailVerified) {
     return {
       success: false,
