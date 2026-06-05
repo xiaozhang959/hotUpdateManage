@@ -54,6 +54,41 @@ describe('lanzou direct url cache', () => {
     expect(resolve).toHaveBeenCalledTimes(1)
   })
 
+  it('uses ten-minute fallback ttl when direct url expiration is not parseable', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_700_000_000_000)
+    const resolve = vi.fn()
+      .mockResolvedValueOnce('https://example.com/file.apk?e=6a232301')
+      .mockResolvedValueOnce('https://example.com/file.apk?e=6a232302')
+
+    const first = await getCachedLanzouDirectUrl({
+      storageConfigId: 'cfg-1',
+      shareUrl: 'https://www.lanzouf.com/iabc',
+      sharePassword: '1234',
+      resolve,
+    })
+
+    vi.advanceTimersByTime(9 * 60_000)
+    const cached = await getCachedLanzouDirectUrl({
+      storageConfigId: 'cfg-1',
+      shareUrl: 'https://www.lanzouf.com/iabc',
+      sharePassword: '1234',
+      resolve,
+    })
+
+    vi.advanceTimersByTime(60_000)
+    const refreshed = await getCachedLanzouDirectUrl({
+      storageConfigId: 'cfg-1',
+      shareUrl: 'https://www.lanzouf.com/iabc',
+      sharePassword: '1234',
+      resolve,
+    })
+
+    expect(cached).toBe(first)
+    expect(refreshed).toBe('https://example.com/file.apk?e=6a232302')
+    expect(resolve).toHaveBeenCalledTimes(2)
+  })
+
   it('deduplicates concurrent resolve calls', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(1_700_000_000_000)

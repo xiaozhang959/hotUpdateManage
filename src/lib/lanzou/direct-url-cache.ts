@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 
 const SAFETY_MARGIN_MS = 60_000
-const FALLBACK_TTL_MS = 60_000
+const FALLBACK_TTL_MS = 10 * 60_000
 const MIN_CACHE_TTL_MS = 5_000
 const MAX_CACHE_ENTRIES = 2000
 
